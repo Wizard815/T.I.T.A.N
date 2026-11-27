@@ -15,7 +15,7 @@
 | 2, 3 | gemini-2.5-flash | same | same | $0.015, $0.012 |
 | 4, 5 | **Bonsai 9B** (prism-ml/ternary-bonsai-2-9b) | llama-3.1-8b (stand-in: Laya isn't on OpenRouter) | gemini-2.5-flash-lite | $0.005, $0.007 |
 
-All runs plus the screenshots came to about **$0.07** of the $1 limit. Five full test runs cost less than a cent each.
+All runs plus the screenshots came to about **$0.05** of the $1 limit (the key went from $13.375 to $13.429). Five full test runs cost less than a cent each.
 
 ## What happened (final run: Bonsai 9B helper, 8B ranker)
 
