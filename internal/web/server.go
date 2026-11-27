@@ -80,6 +80,7 @@ func (a *App) Handler() http.Handler {
 	m.Handle("DELETE /api/owner/users/{name}", a.signedIn(config.Owner, a.removeUser))
 
 	m.HandleFunc("GET /api/events", a.events)
+	m.HandleFunc("GET /api/glance", a.glance)
 	return m
 }
 
@@ -422,6 +423,64 @@ func (a *App) events(w http.ResponseWriter, r *http.Request) {
 		next = ev[len(ev)-1].ID
 	}
 	writeJSON(w, 200, map[string]any{"events": ev, "next_after_id": next})
+}
+
+// glance is a small read-only summary for DASH, the handheld: counts, what's
+// down and why, and every service's status. It sees what a family member
+// sees in the room: no one's personal services, no actions, no chat.
+func (a *App) glance(w http.ResponseWriter, r *http.Request) {
+	got := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
+	if a.GlanceToken == "" {
+		fail(w, 503, "The DASH summary is off. Set TITAN_GLANCE_TOKEN to turn it on.")
+		return
+	}
+	if subtle.ConstantTimeCompare([]byte(got), []byte(a.GlanceToken)) != 1 {
+		fail(w, 401, "This summary needs TITAN_GLANCE_TOKEN as a Bearer token.")
+		return
+	}
+	cards, err := a.Board(r.Context(), agent.User{Name: "dash", Role: config.Family, Room: true})
+	if err != nil {
+		fail(w, 500, "The board didn't load: "+err.Error())
+		return
+	}
+	type down struct {
+		Name   string `json:"name"`
+		Detail string `json:"detail"`
+		Cause  string `json:"cause,omitempty"`
+	}
+	type svc struct {
+		Name   string `json:"name"`
+		Status string `json:"status"`
+	}
+	out := struct {
+		Up       int    `json:"up"`
+		Down     int    `json:"down"`
+		Pending  int    `json:"pending"`
+		Notes    int    `json:"notes"`
+		Every    int    `json:"every"`
+		DownList []down `json:"down_list"`
+		Services []svc  `json:"services"`
+	}{DownList: []down{}, Services: []svc{}, Every: int(a.Cfg.Every.D().Seconds())}
+	for _, c := range cards {
+		switch c.Status {
+		case "up":
+			out.Up++
+		case "down":
+			out.Down++
+			if len(out.DownList) < 6 {
+				out.DownList = append(out.DownList, down{Name: c.Name, Detail: c.Detail, Cause: c.Cause})
+			}
+		default:
+			out.Pending++
+		}
+		if len(out.Services) < 40 {
+			out.Services = append(out.Services, svc{Name: c.Name, Status: c.Status})
+		}
+	}
+	if n, err := a.DB.Notes(r.Context()); err == nil {
+		out.Notes = len(n)
+	}
+	writeJSON(w, 200, out)
 }
 
 func authVerify(hash, pw string) bool { return auth.Verify(hash, pw) }
