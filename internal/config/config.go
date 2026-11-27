@@ -52,6 +52,33 @@ type Config struct {
 	KeepDays int       `yaml:"keep_days"`
 	Limits   Limits    `yaml:"limits"`
 	Services []Service `yaml:"services"`
+	Pipeline *Pipeline `yaml:"pipeline"`
+	Network  *Network  `yaml:"network"`
+	Style    string    `yaml:"style"` // caveman (default) or plain
+	Room     Room      `yaml:"room"`
+}
+
+// Room is the shared chat everyone signed in can talk in.
+type Room struct {
+	Off   bool     `yaml:"off"`   // turn the room off
+	Words []string `yaml:"words"` // more words to mask, on top of the built-in list
+}
+
+// Pipeline is the media chain: Seerr -> Sonarr/Radarr -> SABnzbd -> Plex
+// (through Tautulli). Read only. Any stage can be left out.
+type Pipeline struct {
+	Audience string  `yaml:"audience"` // who may ask about it; default family
+	Seerr    *Source `yaml:"seerr"`
+	Sonarr   *Source `yaml:"sonarr"`
+	Radarr   *Source `yaml:"radarr"`
+	Sabnzbd  *Source `yaml:"sabnzbd"`
+	Tautulli *Source `yaml:"tautulli"`
+}
+
+// Network is the owner's view of the home network (Omada). Pausing a
+// device goes through titan-hands, which keeps the Omada login.
+type Network struct {
+	Enabled bool `yaml:"enabled"`
 }
 
 type Argos struct {
@@ -77,7 +104,10 @@ type Notify struct {
 	NtfyURL string `yaml:"ntfy_url"` // optional: POST a line here for the owner
 }
 
+// Kuma is an outside uptime app T.I.T.A.N can read: Uptime Kuma (a
+// published status page) or Gatus. T.I.T.A.N's own checks work without one.
 type Kuma struct {
+	Kind      string `yaml:"kind"` // kuma (default) or gatus
 	URL       string `yaml:"url"`
 	Slug      string `yaml:"slug"`
 	ImportAll bool   `yaml:"import_all"` // show monitors not listed under services
@@ -110,9 +140,11 @@ type Service struct {
 type Check struct {
 	HTTP      string     `yaml:"http"`      // GET; 2xx/3xx is up
 	Container bool       `yaml:"container"` // the container is running
-	Kuma      string     `yaml:"kuma"`      // an Uptime Kuma monitor name
+	Kuma      string     `yaml:"kuma"`      // a monitor name in the uptime app (Uptime Kuma or Gatus)
+	TCP       string     `yaml:"tcp"`       // host:port answers (game servers, databases)
 	Freshness *Freshness `yaml:"freshness"` // a "last ran" time must be recent
 	AMP       bool       `yaml:"amp"`       // the AMP instance's game is running
+	Pipeline  bool       `yaml:"pipeline"`  // the media pipeline isn't stuck
 }
 
 // Info is one extra fact on a card. Give exactly one kind. Keys are read
@@ -231,6 +263,16 @@ func Parse(b []byte) (*Config, error) {
 	if c.Hands.TokenEnv == "" {
 		c.Hands.TokenEnv = "TITAN_HANDS_TOKEN"
 	}
+	switch c.Kuma.Kind {
+	case "":
+		c.Kuma.Kind = "kuma"
+	case "kuma", "gatus":
+	default:
+		return nil, fmt.Errorf("kuma.kind must be kuma or gatus, got %q", c.Kuma.Kind)
+	}
+	if c.Kuma.Kind == "kuma" && c.Kuma.URL != "" && c.Kuma.Slug == "" {
+		return nil, fmt.Errorf("kuma.slug is needed: the name of a published Uptime Kuma status page")
+	}
 	if c.Kuma.Audience != "" {
 		r, ok := audienceRole(c.Kuma.Audience)
 		if !ok {
@@ -239,6 +281,25 @@ func Parse(b []byte) (*Config, error) {
 		c.Kuma.Audience = r
 	} else {
 		c.Kuma.Audience = Owner
+	}
+	switch c.Style {
+	case "", "caveman", "plain":
+	default:
+		return nil, fmt.Errorf("style must be caveman or plain, got %q", c.Style)
+	}
+	if p := c.Pipeline; p != nil {
+		if p.Audience == "" {
+			p.Audience = Family
+		} else if r, ok := audienceRole(p.Audience); ok {
+			p.Audience = r
+		} else {
+			return nil, fmt.Errorf("pipeline.audience must be friends, family or owner, got %q", p.Audience)
+		}
+		for name, src := range map[string]*Source{"seerr": p.Seerr, "sonarr": p.Sonarr, "radarr": p.Radarr, "sabnzbd": p.Sabnzbd, "tautulli": p.Tautulli} {
+			if src != nil && src.URL == "" {
+				return nil, fmt.Errorf("pipeline.%s needs a url", name)
+			}
+		}
 	}
 	seen := map[string]bool{}
 	for i := range c.Services {
@@ -282,10 +343,19 @@ func Parse(b []byte) (*Config, error) {
 		if s.Check.Kuma != "" {
 			n++
 		}
+		if s.Check.TCP != "" {
+			n++
+		}
 		if s.Check.AMP {
 			n++
 			if s.AMP == "" {
 				return nil, fmt.Errorf("service %s: an amp check needs amp: <instance name>", s.ID)
+			}
+		}
+		if s.Check.Pipeline {
+			n++
+			if c.Pipeline == nil {
+				return nil, fmt.Errorf("service %s: a pipeline check needs a pipeline: section", s.ID)
 			}
 		}
 		if s.Check.Freshness != nil {
@@ -296,7 +366,7 @@ func Parse(b []byte) (*Config, error) {
 			}
 		}
 		if n != 1 {
-			return nil, fmt.Errorf("service %s: give exactly one check (http, container, kuma, freshness or amp)", s.ID)
+			return nil, fmt.Errorf("service %s: give exactly one check (http, tcp, container, kuma, freshness, amp or pipeline)", s.ID)
 		}
 		if s.Check.Container && s.Container == "" {
 			return nil, fmt.Errorf("service %s: a container check needs container: <name>", s.ID)

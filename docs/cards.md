@@ -37,3 +37,29 @@ The ports in `titan.example.yaml` are the apps' usual ones inside Docker (Tautul
 ```
 
 A `depends_on` that names a missing service, or goes round in a circle, stops titan at start with the service named.
+
+## Other checks and uptime apps
+
+- `check: {tcp: "host:port"}` is up when the port accepts a connection. Use it for game ports and databases.
+- `kuma:` can read Uptime Kuma (a published status page, `slug:`) or Gatus (`kind: gatus`, which reads `/api/v1/endpoints/statuses`). A service uses it with `check: {kuma: "Monitor name"}`. `import_all: true` shows the app's other monitors read only.
+
+## The media pipeline
+
+`pipeline:` lets the chat answer "is my show coming?". It reads, read only:
+
+- Seerr's request counts,
+- the Sonarr and Radarr queues,
+- the SABnzbd queue,
+- Tautulli's recently added.
+
+Each stage is optional. A stage that can't be read is named in the answer, not guessed. A service with `check: {pipeline: true}` turns red only when something is stuck. Examples: an import is blocked ("downloaded but can't be moved into the library"), a download failed, or SABnzbd is paused with things in its queue.
+
+```yaml
+pipeline:
+  audience: family            # who may ask; default family
+  seerr:    {url: http://overseerr:5055, key_env: SEERR_API_KEY}
+  sonarr:   {url: http://binhex-sonarr:8989, key_env: SONARR_API_KEY}
+  radarr:   {url: http://binhex-radarr:7878, key_env: RADARR_API_KEY}
+  sabnzbd:  {url: http://binhex-sabnzbd:8080, key_env: SABNZBD_API_KEY}
+  tautulli: {url: http://tautulli:8181, key_env: TAUTULLI_API_KEY}
+```

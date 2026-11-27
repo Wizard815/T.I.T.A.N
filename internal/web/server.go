@@ -61,8 +61,14 @@ func (a *App) Handler() http.Handler {
 	m.Handle("GET /api/me", a.signedIn("", a.me))
 	m.Handle("GET /api/board", a.signedIn("", a.board))
 	m.Handle("POST /api/chat", a.signedIn("", a.chat))
+	m.Handle("POST /api/explain", a.signedIn("", func(w http.ResponseWriter, r *http.Request) { writeJSON(w, 200, a.Explain(r.Context(), userFrom(r))) }))
+	m.Handle("GET /api/updates/{service}", a.signedIn("", a.updates))
+	m.Handle("POST /api/updates/{service}", a.signedIn("", a.postUpdate))
 	m.Handle("POST /api/propose", a.signedIn("", a.propose))
 	m.Handle("POST /api/proposals/{id}", a.signedIn("", a.decide))
+	m.Handle("GET /api/room", a.signedIn("", a.roomGet))
+	m.Handle("POST /api/room", a.signedIn("", a.roomPost))
+	m.Handle("DELETE /api/owner/room/{id}", a.signedIn(config.Owner, a.roomRemove))
 	m.Handle("POST /api/password", a.signedIn("", a.ownPassword))
 
 	m.Handle("GET /api/owner/inbox", a.signedIn(config.Owner, a.inbox))
@@ -228,6 +234,43 @@ func (a *App) decide(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, 200, map[string]string{"result": msg})
+}
+
+func (a *App) updates(w http.ResponseWriter, r *http.Request) {
+	u := userFrom(r)
+	s, ok := a.find(r.PathValue("service"))
+	if !ok || !a.sees(s, u) {
+		fail(w, 404, "There's no service like that on your board.")
+		return
+	}
+	list, err := a.DB.Updates(r.Context(), s.ID, 100)
+	if err != nil {
+		fail(w, 500, err.Error())
+		return
+	}
+	working, _ := a.DB.Working(r.Context())
+	recent, _ := a.DB.Recent(r.Context(), s.ID, 1)
+	writeJSON(w, 200, map[string]any{"service": s.ID, "name": s.Name, "updates": list, "working": append([]string{}, working[s.ID]...), "checked": recent})
+}
+
+func (a *App) postUpdate(w http.ResponseWriter, r *http.Request) {
+	var b struct {
+		Text    string
+		Working *bool
+	}
+	if readJSON(r, &b) != nil {
+		fail(w, 400, `Send {"text": "..."} or {"working": true}.`)
+		return
+	}
+	if err := a.AddUpdate(r.Context(), userFrom(r), r.PathValue("service"), b.Text, b.Working); err != nil {
+		code := 400
+		if errors.Is(err, errNoService) {
+			code = 404
+		}
+		fail(w, code, err.Error())
+		return
+	}
+	writeJSON(w, 200, map[string]bool{"ok": true})
 }
 
 func (a *App) ownPassword(w http.ResponseWriter, r *http.Request) {

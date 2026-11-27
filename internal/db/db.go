@@ -59,6 +59,31 @@ CREATE TABLE IF NOT EXISTS inbox (
   text TEXT NOT NULL,
   done INTEGER NOT NULL DEFAULT 0
 );
+CREATE TABLE IF NOT EXISTS updates (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  service TEXT NOT NULL,
+  at INTEGER NOT NULL,
+  author TEXT NOT NULL,          -- an account name, or "titan"
+  bot INTEGER NOT NULL DEFAULT 0,
+  text TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS updates_service ON updates(service, id);
+CREATE TABLE IF NOT EXISTS working (
+  service TEXT NOT NULL,
+  name TEXT NOT NULL,
+  since INTEGER NOT NULL,
+  PRIMARY KEY (service, name)
+);
+CREATE TABLE IF NOT EXISTS room (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  at INTEGER NOT NULL,
+  author TEXT NOT NULL,          -- an account name, or "titan"
+  bot INTEGER NOT NULL DEFAULT 0,
+  text TEXT NOT NULL,
+  for_name TEXT NOT NULL DEFAULT '',  -- whose Yes the proposals wait for
+  proposals TEXT NOT NULL DEFAULT '',
+  removed INTEGER NOT NULL DEFAULT 0
+);
 CREATE TABLE IF NOT EXISTS events (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   at INTEGER NOT NULL,
@@ -252,6 +277,12 @@ func (d *DB) Prune(ctx context.Context, keep time.Duration) error {
 	if err == nil {
 		_, err = d.ExecContext(ctx, `DELETE FROM events WHERE at < ?`, time.Now().Add(-keep).UnixMilli())
 	}
+	if err == nil {
+		_, err = d.ExecContext(ctx, `DELETE FROM updates WHERE at < ?`, time.Now().Add(-keep).Unix())
+	}
+	if err == nil {
+		_, err = d.ExecContext(ctx, `DELETE FROM room WHERE at < ?`, time.Now().Add(-keep).Unix())
+	}
 	return err
 }
 
@@ -341,6 +372,164 @@ func (d *DB) Notes(ctx context.Context) ([]Note, error) {
 func (d *DB) DoneNote(ctx context.Context, id int64) error {
 	_, err := d.ExecContext(ctx, `UPDATE inbox SET done = 1 WHERE id = ?`, id)
 	return err
+}
+
+// ---- per-service updates: what happened, and who's on it ----
+
+type Update struct {
+	ID      int64  `json:"id"`
+	Service string `json:"service"`
+	At      int64  `json:"at"`
+	Author  string `json:"author"`
+	Bot     bool   `json:"bot"`
+	Text    string `json:"text"`
+}
+
+func (d *DB) AddUpdate(ctx context.Context, u Update) error {
+	_, err := d.ExecContext(ctx, `INSERT INTO updates (service, at, author, bot, text) VALUES (?, ?, ?, ?, ?)`, u.Service, time.Now().Unix(), u.Author, b2i(u.Bot), u.Text)
+	return err
+}
+
+// Updates returns a service's newest updates, newest first.
+func (d *DB) Updates(ctx context.Context, service string, limit int) ([]Update, error) {
+	rows, err := d.QueryContext(ctx, `SELECT id, service, at, author, bot, text FROM updates WHERE service = ? ORDER BY id DESC LIMIT ?`, service, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []Update{}
+	for rows.Next() {
+		var u Update
+		var bot int
+		if err := rows.Scan(&u.ID, &u.Service, &u.At, &u.Author, &bot, &u.Text); err != nil {
+			return nil, err
+		}
+		u.Bot = bot == 1
+		out = append(out, u)
+	}
+	return out, rows.Err()
+}
+
+// UpdatesSince counts updates per service since t (for the badge).
+func (d *DB) UpdatesSince(ctx context.Context, since time.Time) (map[string]int, error) {
+	rows, err := d.QueryContext(ctx, `SELECT service, count(*) FROM updates WHERE at >= ? GROUP BY service`, since.Unix())
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[string]int{}
+	for rows.Next() {
+		var s string
+		var n int
+		if err := rows.Scan(&s, &n); err != nil {
+			return nil, err
+		}
+		out[s] = n
+	}
+	return out, rows.Err()
+}
+
+func (d *DB) SetWorking(ctx context.Context, service, name string, on bool) error {
+	var err error
+	if on {
+		_, err = d.ExecContext(ctx, `INSERT INTO working (service, name, since) VALUES (?, ?, ?) ON CONFLICT DO NOTHING`, service, name, time.Now().Unix())
+	} else {
+		_, err = d.ExecContext(ctx, `DELETE FROM working WHERE service = ? AND name = ?`, service, name)
+	}
+	return err
+}
+
+func (d *DB) ClearWorking(ctx context.Context, service string) error {
+	_, err := d.ExecContext(ctx, `DELETE FROM working WHERE service = ?`, service)
+	return err
+}
+
+// Working lists who is on each service (older than 12 hours drops off).
+func (d *DB) Working(ctx context.Context) (map[string][]string, error) {
+	rows, err := d.QueryContext(ctx, `SELECT service, name FROM working WHERE since >= ? ORDER BY since`, time.Now().Add(-12*time.Hour).Unix())
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[string][]string{}
+	for rows.Next() {
+		var s, n string
+		if err := rows.Scan(&s, &n); err != nil {
+			return nil, err
+		}
+		out[s] = append(out[s], n)
+	}
+	return out, rows.Err()
+}
+
+// ---- the room: one chat everyone signed in shares ----
+
+type Line struct {
+	ID        int64           `json:"id"`
+	At        int64           `json:"at"`
+	Author    string          `json:"author"`
+	Bot       bool            `json:"bot"`
+	Text      string          `json:"text"`
+	For       string          `json:"-"`
+	Proposals json.RawMessage `json:"proposals,omitempty"`
+	Removed   bool            `json:"removed,omitempty"`
+}
+
+func (d *DB) AddLine(ctx context.Context, l Line) (int64, error) {
+	r, err := d.ExecContext(ctx, `INSERT INTO room (at, author, bot, text, for_name, proposals) VALUES (?, ?, ?, ?, ?, ?)`,
+		time.Now().Unix(), l.Author, b2i(l.Bot), l.Text, l.For, string(l.Proposals))
+	if err != nil {
+		return 0, err
+	}
+	return r.LastInsertId()
+}
+
+// Lines returns lines after id, oldest first. With after 0 it returns the
+// newest limit lines.
+func (d *DB) Lines(ctx context.Context, after int64, limit int) ([]Line, error) {
+	q := `SELECT id, at, author, bot, text, for_name, proposals, removed FROM room WHERE id > ? ORDER BY id LIMIT ?`
+	if after == 0 {
+		q = `SELECT * FROM (SELECT id, at, author, bot, text, for_name, proposals, removed FROM room ORDER BY id DESC LIMIT ?) ORDER BY id`
+	}
+	var rows *sql.Rows
+	var err error
+	if after == 0 {
+		rows, err = d.QueryContext(ctx, q, limit)
+	} else {
+		rows, err = d.QueryContext(ctx, q, after, limit)
+	}
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []Line{}
+	for rows.Next() {
+		var l Line
+		var bot, removed int
+		var props string
+		if err := rows.Scan(&l.ID, &l.At, &l.Author, &bot, &l.Text, &l.For, &props, &removed); err != nil {
+			return nil, err
+		}
+		l.Bot, l.Removed = bot == 1, removed == 1
+		if props != "" {
+			l.Proposals = json.RawMessage(props)
+		}
+		out = append(out, l)
+	}
+	return out, rows.Err()
+}
+
+// RemoveLine blanks a line (the owner's moderation); the line stays so the
+// log keeps its order.
+func (d *DB) RemoveLine(ctx context.Context, id int64) error {
+	r, err := d.ExecContext(ctx, `UPDATE room SET text = '', proposals = '', removed = 1 WHERE id = ?`, id)
+	if err != nil {
+		return err
+	}
+	if n, _ := r.RowsAffected(); n == 0 {
+		return ErrNotFound
+	}
+	return nil
 }
 
 // ---- events for Overseer ----

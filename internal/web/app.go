@@ -42,6 +42,7 @@ type App struct {
 
 	recheck time.Duration // wait after a fix before checking again
 	wg      sync.WaitGroup
+	room    room
 }
 
 var labels = map[string]string{
@@ -53,6 +54,20 @@ var labels = map[string]string{
 }
 
 func (a *App) who(name string) string { return auth.Pseudonym(a.Salt, name) }
+
+// sees is the one visibility rule. In the room everyone reads the answer,
+// so a room user (role already capped at friend) never sees personal
+// services, not even their own.
+func (a *App) sees(s config.Service, u agent.User) bool {
+	if u.Room && s.Person != "" {
+		return false
+	}
+	return s.Visible(u.Role, u.Name)
+}
+
+func (a *App) allows(s config.Service, u agent.User, act string) bool {
+	return a.sees(s, u) && s.Allows(u.Role, u.Name, act)
+}
 
 func (a *App) find(id string) (config.Service, bool) {
 	for _, s := range a.Runner.Services() {
@@ -79,6 +94,8 @@ type Card struct {
 	Beats     []int              `json:"beats"`           // newest last: 1 up, 0 down
 	Info      []string           `json:"info"`            // extra facts ("2 people watching")
 	Cause     string             `json:"cause,omitempty"` // down because this service is down
+	Updates   int                `json:"updates_24h"`     // updates in the last day
+	Working   []string           `json:"working"`         // who said they're on it
 	Actions   []ActionView       `json:"actions"`
 }
 
@@ -89,14 +106,26 @@ type ActionView struct {
 
 func (a *App) Board(ctx context.Context, u agent.User) ([]Card, error) {
 	now := time.Now()
+	counts, err := a.DB.UpdatesSince(ctx, now.Add(-24*time.Hour))
+	if err != nil {
+		return nil, err
+	}
+	working, err := a.DB.Working(ctx)
+	if err != nil {
+		return nil, err
+	}
 	var out []Card
 	for _, s := range a.Runner.Services() {
-		if !s.Visible(u.Role, u.Name) {
+		if !a.sees(s, u) {
 			continue
 		}
 		c := Card{ID: s.ID, Name: s.Name, Group: s.Group, About: s.About, Personal: s.Person != "", Status: "pending", Detail: "Not checked yet", Uptime: map[string]float64{}, Beats: []int{}, Info: a.Runner.Facts(s.ID)}
 		if c.Info == nil {
 			c.Info = []string{}
+		}
+		c.Updates, c.Working = counts[s.ID], working[s.ID]
+		if c.Working == nil {
+			c.Working = []string{}
 		}
 		recent, err := a.DB.Recent(ctx, s.ID, 40)
 		if err != nil {
@@ -126,7 +155,7 @@ func (a *App) Board(ctx context.Context, u agent.User) ([]Card, error) {
 			if act == config.ActLogs && u.Role != config.Owner {
 				continue // family gets a summary from the helper instead
 			}
-			if s.Allows(u.Role, u.Name, act) && !hasAction(c.Actions, act) {
+			if a.allows(s, u, act) && !hasAction(c.Actions, act) {
 				c.Actions = append(c.Actions, ActionView{act, labels[act]})
 			}
 		}
@@ -176,7 +205,7 @@ func (a *App) Status(ctx context.Context, u agent.User) (string, error) {
 		}
 		s, _ := a.find(c.ID)
 		for _, act := range append([]string{config.ActCheck}, s.Actions...) {
-			if s.Allows(u.Role, u.Name, act) && !contains(r.Fixes, act) {
+			if a.allows(s, u, act) && !contains(r.Fixes, act) {
 				r.Fixes = append(r.Fixes, act)
 			}
 		}
@@ -199,10 +228,10 @@ var errNoService = errors.New("there's no service by that id that this person ca
 
 func (a *App) Problems(ctx context.Context, u agent.User, id string) (string, error) {
 	s, ok := a.find(id)
-	if !ok || !s.Visible(u.Role, u.Name) {
+	if !ok || !a.sees(s, u) {
 		return "", errNoService
 	}
-	if !s.Allows(u.Role, u.Name, config.ActLogs) {
+	if !a.allows(s, u, config.ActLogs) {
 		return "", fmt.Errorf("recent problems aren't available for %s", s.Name)
 	}
 	lines, err := a.logs(ctx, s)
@@ -226,10 +255,10 @@ func (a *App) logs(ctx context.Context, s config.Service) ([]string, error) {
 
 func (a *App) Propose(ctx context.Context, u agent.User, id, action string) (agent.Proposal, error) {
 	s, ok := a.find(id)
-	if !ok || !s.Visible(u.Role, u.Name) {
+	if !ok || !a.sees(s, u) {
 		return agent.Proposal{}, errNoService
 	}
-	if action == config.ActLogs || !s.Allows(u.Role, u.Name, action) {
+	if action == config.ActLogs || !a.allows(s, u, action) {
 		return agent.Proposal{}, fmt.Errorf("%s isn't allowed on %s for a %s", action, s.Name, u.Role)
 	}
 	b := make([]byte, 12)
@@ -265,6 +294,23 @@ func (a *App) TellOwner(ctx context.Context, u agent.User, text string) error {
 		text = text[:1000]
 	}
 	return a.note(ctx, "tell_wizard", u.Name, text)
+}
+
+// Pipeline answers "is my show coming?" for people allowed to ask.
+func (a *App) Pipeline(ctx context.Context, u agent.User, title string) (string, error) {
+	p := a.Cfg.Pipeline
+	if p == nil {
+		return "", errors.New("the media pipeline isn't set up")
+	}
+	if !config.AtLeast(u.Role, p.Audience) {
+		return "", errors.New("this person can't see the media pipeline")
+	}
+	rep, err := a.Runner.Pipeline(ctx, title)
+	if err != nil {
+		return "", err
+	}
+	b, _ := json.Marshal(rep)
+	return string(b), nil
 }
 
 // note puts something in the owner's inbox and pings ntfy if set up.
@@ -323,7 +369,7 @@ func (a *App) Decide(ctx context.Context, u agent.User, id string, yes bool, via
 	}
 	s, ok := a.find(p.Service)
 	// The person's role may have changed since the offer: check again.
-	if !ok || !s.Allows(u.Role, u.Name, p.Action) {
+	if !ok || !a.allows(s, u, p.Action) {
 		a.DB.Claim(ctx, id, "declined")
 		return "", errors.New("You can't do that any more. Ask " + a.OwnerName + ".")
 	}
@@ -348,6 +394,10 @@ func (a *App) Decide(ctx context.Context, u agent.User, id string, yes bool, via
 		a.note(ctx, "failed", u.Name, fmt.Sprintf("%s failed: %s", proposalLabel(p.Action, s.Name), msg))
 	}
 	a.DB.Finish(ctx, id, state, msg)
+	if p.Action != config.ActCheck {
+		verb := map[string]string{"done": "asked T.I.T.A.N to", "failed": "tried to"}[state]
+		a.post(ctx, s.ID, fmt.Sprintf("%s %s %s: %s", u.Name, verb, strings.ToLower(proposalLabel(p.Action, s.Name)), msg))
+	}
 	a.event(ctx, "action", map[string]any{"who": a.who(u.Name), "role": u.Role, "service": s.ID, "action": p.Action, "state": state, "result": msg, "via": via})
 	if err != nil {
 		return "", errors.New(msg)
@@ -411,6 +461,14 @@ func (a *App) OnChange(s config.Service, r db.Result) {
 		cause = a.Runner.Cause(s)
 	}
 	a.event(ctx, "state", map[string]any{"service": s.ID, "name": s.Name, "ok": r.OK, "detail": r.Detail, "cause": cause})
+	if r.OK {
+		a.post(ctx, s.ID, "Back up: "+r.Detail)
+		a.DB.ClearWorking(ctx, s.ID)
+	} else if cause != "" {
+		a.post(ctx, s.ID, "Down because "+cause+" is down: "+r.Detail)
+	} else {
+		a.post(ctx, s.ID, "Went down: "+r.Detail)
+	}
 	// Only the root problem goes to the inbox, not every service behind it.
 	if !r.OK && cause == "" {
 		a.note(ctx, "down", "titan", s.Name+" is down: "+r.Detail)
@@ -434,9 +492,48 @@ func (a *App) Chat(ctx context.Context, u agent.User, text string) agent.Turn {
 	case agent.AskOwner:
 		a.note(ctx, "ask_owner", u.Name, fmt.Sprintf("%q (%s)", text, t.Verdict.Reason))
 	default:
-		a.event(ctx, "conversation", map[string]any{"who": who, "role": u.Role, "text": text, "reply": t.Reply, "model": t.Model, "calls": t.Calls, "proposals": t.Proposals})
+		a.event(ctx, "conversation", map[string]any{"who": who, "role": u.Role, "room": u.Room, "text": text, "reply": t.Reply, "model": t.Model, "calls": t.Calls, "proposals": t.Proposals})
 	}
 	return t
+}
+
+// Explain re-says the person's last answer in full sentences.
+func (a *App) Explain(ctx context.Context, u agent.User) agent.Turn {
+	t := a.Agent.Explain(ctx, u)
+	a.event(ctx, "conversation", map[string]any{"who": a.who(u.Name), "role": u.Role, "text": "[explain]", "reply": t.Reply, "model": t.Model})
+	return t
+}
+
+// post is T.I.T.A.N's own line in a service's updates.
+func (a *App) post(ctx context.Context, service, text string) {
+	if err := a.DB.AddUpdate(ctx, db.Update{Service: service, Author: "titan", Bot: true, Text: text}); err != nil {
+		slog.Warn("update", "err", err)
+	}
+}
+
+// AddUpdate is a person's note on a service, and/or "I'm on it".
+func (a *App) AddUpdate(ctx context.Context, u agent.User, id, text string, working *bool) error {
+	s, ok := a.find(id)
+	if !ok || !a.sees(s, u) {
+		return errNoService
+	}
+	text = strings.TrimSpace(text)
+	if len(text) > 500 {
+		return errors.New("Keep updates under 500 characters.")
+	}
+	if working != nil {
+		if err := a.DB.SetWorking(ctx, s.ID, u.Name, *working); err != nil {
+			return err
+		}
+		if text == "" {
+			text = map[bool]string{true: "is working on it", false: "stopped working on it"}[*working]
+		}
+	}
+	if text == "" {
+		return errors.New("Write something first.")
+	}
+	a.event(ctx, "update", map[string]any{"who": a.who(u.Name), "role": u.Role, "service": s.ID, "text": text})
+	return a.DB.AddUpdate(ctx, db.Update{Service: s.ID, Author: u.Name, Text: text})
 }
 
 // FaithLink is FAITH's address for family and up.

@@ -47,12 +47,23 @@ func main() {
 
 	m := http.NewServeMux()
 	m.HandleFunc("GET /tautulli/api/v2", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Get("cmd") == "get_recently_added" {
+			w.Write([]byte(`{"response":{"data":{"recently_added":[{"title":"Dune: Part Two","media_type":"movie"},{"title":"Ep","grandparent_title":"The Bear","media_type":"episode","parent_media_index":"3","media_index":"1"}]}}}`))
+			return
+		}
 		w.Write([]byte(`{"response":{"data":{"stream_count":"2","stream_count_transcode":1}}}`))
+	})
+	m.HandleFunc("GET /sab/api", func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(`{"queue":{"status":"Downloading","paused":false,"speed":"8.2 M","noofslots":2,"timeleft":"0:14:10"}}`))
 	})
 	m.HandleFunc("GET /seerr/api/v1/request/count", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte(`{"pending":1,"processing":2}`))
 	})
-	m.HandleFunc("GET /sonarr/api/v3/queue", func(w http.ResponseWriter, r *http.Request) { w.Write([]byte(`{"totalRecords":3}`)) })
+	m.HandleFunc("GET /sonarr/api/v3/queue", func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(`{"totalRecords":2,"records":[
+		 {"title":"a","status":"downloading","trackedDownloadStatus":"ok","trackedDownloadState":"downloading","size":100,"sizeleft":40,"timeleft":"00:14:10","series":{"title":"Severance"},"episode":{"seasonNumber":2,"episodeNumber":4}},
+		 {"title":"b","status":"completed","trackedDownloadStatus":"warning","trackedDownloadState":"importPending","size":100,"sizeleft":0,"statusMessages":[{"title":"b","messages":["No files found are eligible for import"]}],"series":{"title":"Andor"},"episode":{"seasonNumber":2,"episodeNumber":1}}]}`))
+	})
 	m.HandleFunc("GET /argos/running", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte(`{"running":[{"model":"qwen3-8b","state":"ready"}]}`))
 	})
@@ -170,12 +181,38 @@ func argos(w http.ResponseWriter, r *http.Request) {
 		say(`{"verdict":"allow","reason":"A status question or a listed fix."}`)
 		return
 	}
+	sys := msgs[0].Content
+	plain := !strings.Contains(sys, "caveman")
+	if strings.HasPrefix(last.Content, "Explain your last answer") {
+		say("I looked at the board for you. The service you asked about isn't answering its health check, so nobody can use it right now. The safe fix is the one I offered: pressing Yes starts or restarts just that service, nothing else. After it runs, T.I.T.A.N checks again on its own and the board turns green if it worked. If it doesn't come back, I've noted it for Wizard.")
+		return
+	}
+	t := strings.ToLower(last.Content)
 	switch last.Role {
 	case "user":
-		call("status", "{}")
+		switch {
+		case t == "thanks" || t == "thank you" || t == "ok" || t == "ty":
+			say("👍")
+		case strings.Contains(t, "show") || strings.Contains(t, "movie") || strings.Contains(t, "download"):
+			call("media_pipeline", `{"title":"severance"}`)
+		default:
+			call("status", "{}")
+		}
 	case "tool":
+		if strings.Contains(last.Content, `"verdict"`) {
+			if plain {
+				say("Severance S2E4 is downloading, about 14 minutes left. Andor S2E1 is stuck: it downloaded but can't be moved into the library.")
+			} else {
+				say("📺 Severance coming. 60% done, 14 min. Andor stuck, Wizard fix.")
+			}
+			return
+		}
 		if strings.HasPrefix(last.Content, "Offered") {
-			say("It's down right now. I can fix that for you: press Yes below.")
+			if plain {
+				say("It's down right now. I can fix that for you: press Yes below.")
+			} else {
+				say("🔧 It down. Me fix. Press Yes.")
+			}
 			return
 		}
 		var rows []struct {
@@ -207,7 +244,11 @@ func argos(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 		}
-		say("Everything you can see is up.")
+		if plain {
+			say("Everything you can see is up.")
+		} else {
+			say("✅ All up. Good.")
+		}
 	default:
 		say("OK.")
 	}

@@ -4,7 +4,9 @@
 
 It's like Uptime Kuma, but it shows more on each card. It also has a chat that can fix the common things itself. Examples: the game server is stopped, FAITH stopped answering, the DnD sync hasn't run in a day. Friends and family sign in, see the services meant for them with uptime, and ask for help. Before anything changes, the person presses Yes.
 
-![A family member asks about Minecraft and gets a fix to approve](docs/images/chat-offers-fix.png)
+![Your chat with T.I.T.A.N and the shared #room on top, the uptime list below](docs/images/board-chat-room.png)
+
+The page has your own chat and a shared `#room` across the top third, with the list of services below. In the room, people talk to each other (swearing and slurs masked) and can ask T.I.T.A.N with `/agent`. Every service has an **Updates** popup that says who's working on it. See [docs/page.md](docs/page.md).
 
 ## How it stays safe
 
@@ -20,6 +22,8 @@ It's like Uptime Kuma, but it shows more on each card. It also has a chat that c
 
 - **Game servers in AMP:** Enshrouded shows "Ready, 2 of 16 players on". Friends can start or restart that one game, not the AMP container.
 - **Card info:** Plex streams (Tautulli), requests (Seerr), download queues (*arr), which AI model is loaded (Argos), or any number from a JSON URL.
+- **"Is my show coming?":** the chat follows a request through Seerr, Sonarr/Radarr, SABnzbd and Plex (`pipeline:` in `titan.yaml`). It says whether things are moving, idle or stuck, and where.
+- **Uptime from elsewhere:** besides its own checks (http, tcp, container, freshness, AMP), T.I.T.A.N can read an Uptime Kuma status page or Gatus (`kuma: {kind: gatus}`).
 - **Root causes:** when the Cloudflare tunnel is down, Plex's card says "Because Outside access is down", and only the tunnel goes to Wizard's inbox.
 
 ![A friend starts Enshrouded through AMP; Plex is down because the tunnel is](docs/images/amp-and-root-cause.png)
@@ -56,6 +60,7 @@ Open http://127.0.0.1:9910 and sign in as `wizard`, `sam` (family) or `alex` (fr
 
 - [docs/models.md](docs/models.md): picking the guard, helper and fallback in Argos (local or cloud)
 - [docs/actions.md](docs/actions.md): the fixes, AMP game servers, titan-hands' allowlist, and adding a service
+- [docs/page.md](docs/page.md): the layout, caveman replies and Explain, the room and `/agent`, updates
 - [docs/cards.md](docs/cards.md): extra card info and "down because of something else"
 - [docs/overseer.md](docs/overseer.md): the event feed Overseer reads for training data
 

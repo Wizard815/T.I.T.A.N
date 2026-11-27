@@ -9,6 +9,7 @@ import (
 	"io"
 	"log/slog"
 	"math"
+	"net"
 	"net/http"
 	"strconv"
 	"strings"
@@ -29,6 +30,42 @@ type Monitor struct {
 	Known  bool
 	Ping   int64
 	Detail string
+}
+
+// Uptime reads the configured uptime app (Uptime Kuma or Gatus).
+func Uptime(ctx context.Context, c *http.Client, k config.Kuma) (map[string]Monitor, error) {
+	if k.Kind == "gatus" {
+		return Gatus(ctx, c, k.URL)
+	}
+	return Kuma(ctx, c, k.URL, k.Slug)
+}
+
+// Gatus reads Gatus's endpoint statuses. It answers by endpoint name.
+func Gatus(ctx context.Context, c *http.Client, base string) (map[string]Monitor, error) {
+	var list []struct {
+		Name, Group, Key string
+		Results          []struct {
+			Success  bool
+			Duration int64 // nanoseconds
+			Errors   []string
+		}
+	}
+	if err := getJSON(ctx, c, strings.TrimRight(base, "/")+"/api/v1/endpoints/statuses", &list); err != nil {
+		return nil, fmt.Errorf("Gatus didn't answer: %v", err)
+	}
+	out := map[string]Monitor{}
+	for i, e := range list {
+		m := Monitor{ID: i + 1, Name: e.Name, Group: e.Group}
+		if n := len(e.Results); n > 0 {
+			last := e.Results[n-1]
+			m.Known, m.Up, m.Ping = true, last.Success, last.Duration/1e6
+			if len(last.Errors) > 0 {
+				m.Detail = last.Errors[0]
+			}
+		}
+		out[strings.ToLower(e.Name)] = m
+	}
+	return out, nil
 }
 
 // Kuma reads a published status page. It answers by monitor name.
@@ -71,6 +108,13 @@ func Kuma(ctx context.Context, c *http.Client, base, slug string) (map[string]Mo
 		}
 	}
 	return out, nil
+}
+
+func appName(kind string) string {
+	if kind == "gatus" {
+		return "Gatus"
+	}
+	return "Uptime Kuma"
 }
 
 func getJSON(ctx context.Context, c *http.Client, u string, v any) error {
@@ -151,7 +195,7 @@ func (r *Runner) Round(ctx context.Context) {
 	var mons map[string]Monitor
 	var kumaErr error
 	if r.Cfg.Kuma.URL != "" {
-		mons, kumaErr = Kuma(ctx, r.HTTP, r.Cfg.Kuma.URL, r.Cfg.Kuma.Slug)
+		mons, kumaErr = Uptime(ctx, r.HTTP, r.Cfg.Kuma)
 		if kumaErr != nil {
 			slog.Warn("kuma", "err", kumaErr)
 		}
@@ -198,7 +242,7 @@ func (r *Runner) CheckOne(ctx context.Context, s config.Service) db.Result {
 	var mons map[string]Monitor
 	var err error
 	if s.Check.Kuma != "" {
-		mons, err = Kuma(ctx, r.HTTP, r.Cfg.Kuma.URL, r.Cfg.Kuma.Slug)
+		mons, err = Uptime(ctx, r.HTTP, r.Cfg.Kuma)
 	}
 	res := r.check(ctx, s, mons, err)
 	r.record(ctx, s, res)
@@ -221,7 +265,7 @@ func (r *Runner) importKuma(mons map[string]Monitor) {
 			continue
 		}
 		extra = append(extra, config.Service{
-			ID: fmt.Sprintf("kuma-%d", m.ID), Name: m.Name, Group: firstNonEmpty(m.Group, "Uptime Kuma"),
+			ID: fmt.Sprintf("%s-%d", r.Cfg.Kuma.Kind, m.ID), Name: m.Name, Group: firstNonEmpty(m.Group, appName(r.Cfg.Kuma.Kind)),
 			Audience: r.Cfg.Kuma.Audience, FixBy: config.Owner, Check: config.Check{Kuma: m.Name},
 		})
 	}
@@ -324,20 +368,38 @@ func (r *Runner) check(ctx context.Context, s config.Service, mons map[string]Mo
 		return done(true, d)
 	case c.Kuma != "":
 		if kumaErr != nil {
-			return done(false, "Uptime Kuma: "+kumaErr.Error())
+			return done(false, kumaErr.Error())
 		}
 		m, ok := mons[strings.ToLower(c.Kuma)]
 		if !ok {
-			return done(false, fmt.Sprintf("Uptime Kuma's status page has no monitor %q", c.Kuma))
+			return done(false, fmt.Sprintf("%s has no monitor %q", appName(r.Cfg.Kuma.Kind), c.Kuma))
 		}
 		if !m.Known {
 			return done(false, "No heartbeat yet")
 		}
 		res.MS = m.Ping
 		if !m.Up {
-			return done(false, firstNonEmpty(m.Detail, "Down in Uptime Kuma"))
+			return done(false, firstNonEmpty(m.Detail, "Down in "+appName(r.Cfg.Kuma.Kind)))
 		}
-		return done(true, "Up in Uptime Kuma")
+		return done(true, "Up in "+appName(r.Cfg.Kuma.Kind))
+	case c.TCP != "":
+		var d net.Dialer
+		conn, err := d.DialContext(ctx, "tcp", c.TCP)
+		if err != nil {
+			return done(false, "Not answering on "+c.TCP+": "+shortErr(err))
+		}
+		conn.Close()
+		return done(true, "Answering")
+	case c.Pipeline:
+		rep, err := r.Pipeline(ctx, "")
+		if err != nil {
+			return done(false, err.Error())
+		}
+		d := rep.Summary
+		if len(rep.Unreadable) > 0 {
+			d += ". Couldn't read: " + strings.Join(rep.Unreadable, ", ")
+		}
+		return done(rep.Verdict != "stuck", d)
 	case c.Freshness != nil:
 		var v any
 		if err := getJSON(ctx, r.HTTP, c.Freshness.URL, &v); err != nil {

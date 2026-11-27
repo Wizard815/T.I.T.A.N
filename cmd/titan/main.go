@@ -175,7 +175,7 @@ func serve(cfgPath, dataPath string, d *db.DB, a *auth.Auth) error {
 		ExportToken: os.Getenv("TITAN_EXPORT_TOKEN"), Salt: s,
 		OwnerName: env("TITAN_OWNER_LABEL", "Wizard"), Secure: os.Getenv("TITAN_SECURE_COOKIE") == "1",
 	}
-	app.Agent = &agent.Agent{Models: models, Guard: cfg.Models.Guard, Helper: cfg.Models.Agent, Fallback: cfg.Models.Fallback, Tools: app, Owner: app.OwnerName}
+	app.Agent = &agent.Agent{Models: models, Guard: cfg.Models.Guard, Helper: cfg.Models.Agent, Fallback: cfg.Models.Fallback, Tools: app, Owner: app.OwnerName, Plain: cfg.Style == "plain"}
 	runner.OnChange = app.OnChange
 	go runner.Run(ctx)
 

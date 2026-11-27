@@ -9,6 +9,7 @@ T.I.T.A.N is a status board and help desk for Wizard's friends and family. Go 1.
 | `internal/agent` | guard model, helper model with fallback, the code screen |
 | `internal/checks` | http, container, Uptime Kuma and freshness checks; uptime |
 | `internal/web` | routes, roles, fixes, owner pages |
+| `internal/censor` | the room's word filter (masking, not blocking) |
 | `internal/fakes` | stand-ins (AMP) shared by tests and the demo |
 | `demo/` | `demo/run.sh` runs everything against `demo/fakeworld` |
 
@@ -17,6 +18,7 @@ T.I.T.A.N is a status board and help desk for Wizard's friends and family. Go 1.
 - **No shell, ever.** Fixes are the named actions in `internal/config` and the ops in `internal/hands`. A new fix means a new named action, checked in titan and again in titan-hands.
 - **Guard first, allowlist always.** Every chat message goes through `Agent.Check`. The guard fails closed (ask_owner). The allowlist, not the guard, is what keeps things safe.
 - **Changing actions need the person's Yes**, checked against their role again when they press it.
+- **The room is public to everyone signed in.** `/agent` there runs as `RoomUser` (friend at most, no personal services, its own history). Never give it the asker's role or private history.
 - **Events carry pseudonyms, not names.** Overseer is Wizard's alone and only reads `/api/events`.
 - **Models are Argos names** (`titan-guard`, `titan-agent`, `titan-fallback`); pick real models in Argos.
 - Secrets in env vars only. Dependencies pinned.

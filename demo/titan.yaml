@@ -23,3 +23,11 @@ services:
   - {id: faith, name: FAITH, group: Family, about: The family assistant., audience: family, container: faith, check: {http: "http://127.0.0.1:9900/faith/health"}, actions: [restart_service, recent_problems]}
   - {id: dnd-sync, name: DnD sync, group: Family, about: Campaign notes into the wiki., audience: family, sync: dnd, check: {freshness: {url: "http://127.0.0.1:9900/dnd/status", field: last_sync, max_age: 6h}}, actions: [run_sync]}
   - {id: sams-hermes, name: Sam's Hermes, group: Family, audience: family, person: sam, container: hermes-sam, check: {container: true}, actions: [restart_service]}
+pipeline:
+  audience: friends
+  seerr: {url: "http://127.0.0.1:9900/seerr"}
+  sonarr: {url: "http://127.0.0.1:9900/sonarr"}
+  sabnzbd: {url: "http://127.0.0.1:9900/sab"}
+  tautulli: {url: "http://127.0.0.1:9900/tautulli"}
+room:
+  words: [grobble]

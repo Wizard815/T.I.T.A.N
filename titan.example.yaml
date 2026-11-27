@@ -29,6 +29,21 @@ kuma:
   import_all: true               # show its other monitors too (read only)
   audience: family
 
+# Or Gatus instead:  kuma: {kind: gatus, url: http://gatus:8080}
+
+style: caveman              # short replies with an Explain button; or plain
+room:
+  words: []                 # extra words to mask in #room (swears and slurs are built in)
+
+# "Is my show coming?" (read only). Leave out any stage you don't run.
+pipeline:
+  audience: family
+  seerr:    {url: http://overseerr:5055, key_env: SEERR_API_KEY}
+  sonarr:   {url: http://binhex-sonarr:8989, key_env: SONARR_API_KEY}
+  radarr:   {url: http://binhex-radarr:7878, key_env: RADARR_API_KEY}
+  sabnzbd:  {url: http://binhex-sabnzbd:8080, key_env: SABNZBD_API_KEY}
+  tautulli: {url: http://tautulli:8181, key_env: TAUTULLI_API_KEY}
+
 check_every: 60s
 keep_days: 90
 limits:

@@ -19,87 +19,114 @@
     color-scheme: light;
   } }
   * { box-sizing:border-box; }
-  body { margin:0; background:var(--bg); color:var(--ink); font:15px/1.55 var(--font); }
-  header.top { position:sticky; top:0; z-index:2; background:var(--panel); border-bottom:1px solid var(--line); }
-  header.top > div { max-width:1180px; margin:0 auto; padding:8px 16px; display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
-  .logo { width:28px; height:28px; flex:none; }
-  header.top b { color:var(--head); font-size:1.05rem; letter-spacing:.08em; }
-  header.top .sub { color:var(--muted); font-size:.82rem; }
-  header.top nav { margin-left:auto; display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
-  main { max-width:1180px; margin:0 auto; padding:20px 16px 64px; }
-  h1 { font-size:1.3rem; margin:0 0 4px; color:var(--head); }
-  h2 { font-size:1.02rem; margin:0 0 10px; color:var(--head); letter-spacing:.02em; } h2::before { content:"▸ "; color:var(--accent); }
-  h3 { font-size:.9rem; margin:18px 0 8px; color:var(--muted); text-transform:uppercase; letter-spacing:.08em; }
-  section { background:var(--card); border:1px solid var(--line); border-radius:8px; padding:16px; margin:0 0 16px; }
-  label { display:block; font-weight:600; margin:0 0 4px; }
+  html, body { margin:0; background:var(--bg); color:var(--ink); font:14px/1.5 var(--font); }
+  a { color:var(--head); }
+  :focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+  .hidden { display:none !important; }
   input, select, button, textarea { font:inherit; min-height:44px; border-radius:8px; border:1px solid var(--line); background:var(--panel); color:var(--ink); padding:8px 10px; }
   input, select, textarea { width:100%; }
-  button { background:var(--accent); color:var(--accent-ink); border-color:var(--accent); padding:8px 14px; cursor:pointer; font-weight:600; }
-  button.quiet { background:transparent; color:var(--ink); border-color:var(--line); }
-  button.small { min-height:44px; padding:6px 10px; font-size:.85rem; }
-  button:hover { filter:brightness(1.1); } button:disabled { opacity:.6; cursor:wait; }
-  :focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
-  a { color:var(--head); }
-  .hint { color:var(--muted); font-size:.86rem; margin:0 0 8px; }
-  .msg { min-height:1.5em; margin:8px 0 0; } .msg.bad { color:var(--bad); } .msg.good { color:var(--good); }
-  .hidden { display:none !important; }
-  .layout { display:grid; grid-template-columns:minmax(0,1fr) 380px; gap:16px; align-items:start; }
-  @media (max-width:900px) { .layout { grid-template-columns:1fr; } }
-  .summary { display:flex; gap:10px; flex-wrap:wrap; margin:0 0 14px; }
-  .pill { border:1px solid var(--line); border-radius:99px; padding:2px 12px; font-size:.86rem; }
-  .pill.up { color:var(--good); border-color:var(--good); } .pill.down { color:var(--bad); border-color:var(--bad); }
-  .cards { display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:12px; }
-  .svc { background:var(--card); border:1px solid var(--line); border-left:4px solid var(--muted); border-radius:8px; padding:12px; display:flex; flex-direction:column; gap:6px; }
-  .svc.up { border-left-color:var(--good); } .svc.down { border-left-color:var(--bad); }
-  .svc .name { display:flex; justify-content:space-between; gap:8px; align-items:baseline; }
-  .svc .name b { color:var(--head); }
-  .badge { font-size:.78rem; padding:1px 8px; border-radius:99px; border:1px solid currentColor; white-space:nowrap; }
-  .badge.up { color:var(--good); } .badge.down { color:var(--bad); } .badge.pending { color:var(--muted); }
-  .svc .detail { font-size:.88rem; }
-  .svc .cause { color:var(--warn); font-size:.86rem; } .svc .cause::before { content:"↳ "; }
-  .svc.knock { border-left-color:var(--warn); }
-  .facts { margin:0; padding-left:16px; font-size:.84rem; } .facts li { margin:0; }
-  .svc .about, .svc .when { color:var(--muted); font-size:.8rem; }
-  .beats { display:flex; gap:2px; height:18px; align-items:stretch; }
-  .beats i { flex:1; border-radius:2px; background:var(--good); min-width:3px; }
-  .beats i.d { background:var(--bad); } .beats i.e { background:var(--track); }
-  .ups { display:flex; gap:12px; font-size:.8rem; color:var(--muted); font-variant-numeric:tabular-nums; }
-  .ups b { color:var(--ink); font-weight:600; }
-  .acts { display:flex; gap:6px; flex-wrap:wrap; margin-top:4px; }
-  .confirm { border:1px solid var(--warn); border-radius:8px; padding:8px; display:flex; flex-direction:column; gap:6px; }
-  .confirm .row { display:flex; gap:6px; flex-wrap:wrap; }
-  .chat { position:sticky; top:68px; }
-  .log { height:420px; overflow-y:auto; display:flex; flex-direction:column; gap:8px; padding:4px 2px; margin:0 0 10px; }
-  .bubble { padding:8px 10px; border-radius:8px; border:1px solid var(--line); max-width:92%; white-space:pre-wrap; overflow-wrap:anywhere; font-size:.9rem; }
-  .bubble.me { align-self:flex-end; background:var(--panel); }
-  .bubble.bot { align-self:flex-start; }
-  .bubble.note { align-self:center; color:var(--muted); font-size:.8rem; border-style:dashed; }
-  .bubble .who { display:block; font-size:.72rem; color:var(--muted); margin-bottom:2px; }
-  .chatform { display:flex; gap:8px; } .chatform textarea { min-height:44px; height:60px; resize:vertical; }
-  table { width:100%; border-collapse:collapse; font-size:.88rem; } th, td { text-align:left; padding:6px 4px; border-bottom:1px solid var(--line); vertical-align:middle; }
-  th { color:var(--muted); font-weight:600; }
-  .form-row { display:grid; grid-template-columns:1fr 1fr 1fr auto; gap:8px; align-items:end; }
-  @media (max-width:700px) { .form-row { grid-template-columns:1fr; } }
+  button { background:var(--accent); color:var(--accent-ink); border-color:var(--accent); padding:6px 12px; cursor:pointer; font-weight:600; }
+  button.quiet { background:transparent; color:var(--ink); border-color:var(--line); font-weight:500; }
+  button:hover { filter:brightness(1.12); } button:disabled { opacity:.6; cursor:wait; }
+  label { display:block; font-weight:600; margin:0 0 4px; }
+  .hint { color:var(--muted); font-size:.85rem; margin:0 0 8px; }
+  .msg { min-height:1.4em; margin:6px 0 0; } .msg.bad { color:var(--bad); } .msg.good { color:var(--good); }
+  section { background:var(--card); border:1px solid var(--line); border-radius:8px; padding:14px; margin:0 0 14px; }
+  h2 { font-size:1rem; margin:0 0 8px; color:var(--head); }
+  table { width:100%; border-collapse:collapse; font-size:.86rem; } th, td { text-align:left; padding:6px 4px; border-bottom:1px solid var(--line); vertical-align:middle; } th { color:var(--muted); font-weight:600; }
+  .form-row { display:grid; grid-template-columns:1fr 1fr 1fr auto; gap:8px; align-items:end; } @media (max-width:700px) { .form-row { grid-template-columns:1fr; } }
   pre.logs { background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:10px; max-height:360px; overflow:auto; font-size:.78rem; white-space:pre-wrap; overflow-wrap:anywhere; }
-  .login { max-width:400px; margin:48px auto; }
-  .login form > div { margin:0 0 12px; }
+  .wrap { max-width:1100px; margin:0 auto; padding:0 16px; }
+
+  /* 1. header with the info */
+  header.top { position:sticky; top:0; z-index:5; background:var(--panel); border-bottom:1px solid var(--line); }
+  header.top .wrap { display:flex; align-items:center; gap:12px; flex-wrap:wrap; padding-top:8px; padding-bottom:8px; }
+  .brand { display:flex; align-items:center; gap:8px; } .brand b { color:var(--head); letter-spacing:.1em; } .logo { width:26px; height:26px; }
+  .stats { display:flex; gap:6px; flex-wrap:wrap; }
+  .pill { border:1px solid var(--line); border-radius:99px; padding:1px 10px; font-size:.8rem; white-space:nowrap; }
+  .pill.up { color:var(--good); border-color:var(--good); } .pill.down { color:var(--bad); border-color:var(--bad); } .pill.knock { color:var(--warn); border-color:var(--warn); }
+  nav { margin-left:auto; display:flex; gap:6px; align-items:center; flex-wrap:wrap; } nav .who { color:var(--muted); font-size:.8rem; }
+  nav button { min-height:36px; padding:4px 10px; font-size:.82rem; } nav button[aria-current] { border-color:var(--accent); color:var(--head); }
+
+  /* 2. chat, the top third */
+  .chat { height:33vh; min-height:240px; display:flex; flex-direction:column; border-bottom:1px solid var(--line); background:var(--card); }
+  .chat .wrap { flex:1; display:flex; flex-direction:column; min-height:0; width:100%; padding-top:8px; padding-bottom:8px; gap:8px; }
+  .log { flex:1; overflow-y:auto; display:flex; flex-direction:column; gap:6px; min-height:0; }
+  .b { max-width:80%; padding:6px 10px; border-radius:10px; border:1px solid var(--line); white-space:pre-wrap; overflow-wrap:anywhere; }
+  .b.me { align-self:flex-end; background:var(--panel); }
+  .b.bot { align-self:flex-start; }
+  .b.emoji { font-size:1.8rem; line-height:1.2; padding:2px 8px; border:none; }
+  .b.look { font-size:1.4rem; border-style:dashed; }
+  .b .more { display:flex; gap:6px; margin-top:4px; } .b .more button { min-height:32px; padding:2px 10px; font-size:.78rem; }
+  .b .explained { margin-top:6px; padding-top:6px; border-top:1px dashed var(--line); color:var(--ink); font-size:.9rem; }
+  .confirm { margin-top:6px; display:flex; gap:6px; align-items:center; flex-wrap:wrap; border:1px solid var(--warn); border-radius:8px; padding:6px 8px; }
+  .confirm button { min-height:36px; }
+  .ask { display:flex; gap:8px; } .ask input { min-height:40px; }
+
+  /* 2b. side by side: your own chat and the room */
+  .panes { flex:1; display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:12px; min-height:0; }
+  .pane { display:flex; flex-direction:column; gap:6px; min-height:0; }
+  .pane h2 { margin:0; font-size:.75rem; color:var(--muted); text-transform:uppercase; letter-spacing:.1em; display:flex; justify-content:space-between; gap:8px; }
+  .pane h2 span + span { text-transform:none; letter-spacing:0; }
+  .tabs { display:none; gap:6px; } .tabs button { min-height:36px; padding:2px 12px; font-size:.8rem; } .tabs button[aria-selected="true"] { border-color:var(--accent); color:var(--head); }
+  .irc { flex:1; overflow-y:auto; min-height:0; background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:6px 8px; font-size:.82rem; line-height:1.45; }
+  .irc p { margin:0; overflow-wrap:anywhere; white-space:pre-wrap; }
+  .irc .ts { color:var(--muted); } .irc .nick { color:var(--head); font-weight:600; } .irc .nick.mine { color:var(--warn); }
+  .irc .bot .nick, .irc .bot .tx { color:var(--accent); } .irc .gone { color:var(--muted); font-style:italic; }
+  .irc .rm { min-height:0; padding:0 6px; margin-left:6px; font-size:.7rem; background:transparent; color:var(--muted); border-color:var(--line); }
+  .irc .confirm { margin:2px 0 4px; }
+  @media (max-width:760px) {
+    .panes { grid-template-columns:minmax(0,1fr); } .tabs { display:flex; }
+    .pane.off { display:none; }
+  }
+
+  /* 3. the uptime list, by type */
+  main { padding-top:12px; padding-bottom:48px; }
+  .group { margin:0 0 14px; }
+  .group h3 { margin:0 0 4px; font-size:.75rem; color:var(--muted); text-transform:uppercase; letter-spacing:.1em; display:flex; gap:8px; }
+  .rows { border:1px solid var(--line); border-radius:8px; background:var(--card); }
+  .row { display:grid; grid-template-columns:84px minmax(0,1fr) 150px 60px auto; gap:10px; align-items:center; padding:6px 10px; border-top:1px solid var(--line); }
+  .row:first-child { border-top:none; }
+  .st { font-size:.78rem; display:flex; align-items:center; gap:6px; }
+  .st i { width:9px; height:9px; border-radius:50%; background:var(--muted); flex:none; }
+  .st.up i { background:var(--good); } .st.down i { background:var(--bad); } .st.knock i { background:var(--warn); }
+  .st.up { color:var(--good); } .st.down { color:var(--bad); } .st.knock { color:var(--warn); }
+  .what b { color:var(--head); font-weight:600; } .what .d { color:var(--ink); font-size:.84rem; }
+  .what .x { color:var(--muted); font-size:.78rem; } .what .c { color:var(--warn); font-size:.8rem; } .what .w { color:var(--accent); font-size:.78rem; }
+  .beats { display:flex; gap:1px; height:14px; } .beats i { flex:1; background:var(--good); border-radius:1px; } .beats i.d { background:var(--bad); } .beats i.e { background:var(--track); }
+  .pct { font-size:.8rem; text-align:right; font-variant-numeric:tabular-nums; color:var(--muted); } .pct b { color:var(--ink); }
+  .acts { display:flex; gap:4px; flex-wrap:wrap; justify-content:flex-end; } .acts button { min-height:32px; padding:2px 8px; font-size:.78rem; }
+  .acts button.askb { background:var(--warn); border-color:var(--warn); color:#1d1300; }
+  .rowmsg { grid-column:1 / -1; } .rowmsg:empty { display:none; }
+  @media (max-width:760px) {
+    .row { grid-template-columns:70px minmax(0,1fr); } .beats, .pct { display:none; } .acts { grid-column:1 / -1; justify-content:flex-start; }
+    .chat { height:38vh; }
+  }
+
+  dialog { max-width:620px; width:calc(100% - 32px); background:var(--card); color:var(--ink); border:1px solid var(--line); border-radius:10px; padding:16px; }
+  dialog::backdrop { background:rgba(0,0,0,.55); }
+  .tl { list-style:none; padding:0; margin:10px 0 0; max-height:45vh; overflow-y:auto; }
+  .tl li { padding:6px 0; border-top:1px solid var(--line); font-size:.86rem; } .tl .t { color:var(--muted); font-size:.75rem; } .tl .bot { color:var(--accent); }
+  .dlg-head { display:flex; justify-content:space-between; align-items:center; gap:8px; }
+  .login { max-width:400px; margin:48px auto; } .login form > div { margin:0 0 12px; }
+  #ownerView, #accountView { padding-top:14px; }
 </style>
 </head>
 <body>
-<header class="top"><div>
-  <svg class="logo" viewBox="0 0 32 32" aria-hidden="true"><path d="M16 3l11 5v7c0 7-5 12-11 14C10 27 5 22 5 15V8z" fill="none" stroke="var(--accent)" stroke-width="2"/><path d="M10 16l4 4 8-9" fill="none" stroke="var(--head)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
-  <div><b>T.I.T.A.N</b><div class="sub">Timely Intelligence for Tasks, Answers, and Navigation</div></div>
+<header class="top"><div class="wrap">
+  <div class="brand"><svg class="logo" viewBox="0 0 32 32" aria-hidden="true"><path d="M16 3l11 5v7c0 7-5 12-11 14C10 27 5 22 5 15V8z" fill="none" stroke="var(--accent)" stroke-width="2"/><path d="M10 16l4 4 8-9" fill="none" stroke="var(--head)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg><b>T.I.T.A.N</b></div>
+  <div class="stats" id="stats" role="status" aria-live="polite"></div>
   <nav id="nav" class="hidden" aria-label="Main">
-    <span id="whoami" class="sub"></span>
+    <span id="whoami" class="who"></span>
     <a id="faith" class="hidden" href="#" target="_blank" rel="noopener">Ask FAITH</a>
-    <button class="quiet small" data-view="board" aria-current="page">Board</button>
-    <button class="quiet small hidden" data-view="owner" id="ownerTab">Owner</button>
-    <button class="quiet small" data-view="account">Account</button>
-    <button class="quiet small" id="signout">Sign out</button>
+    <button class="quiet" data-view="board" aria-current="page">Board</button>
+    <button class="quiet hidden" data-view="owner" id="ownerTab">Owner</button>
+    <button class="quiet" data-view="account">Account</button>
+    <button class="quiet" id="signout">Sign out</button>
   </nav>
 </div></header>
 
-<main>
+<div class="wrap">
   <section id="loginView" class="login hidden">
     <h1>Sign in</h1>
     <p class="hint">See how the homelab is doing, and get help when something is down. Ask Wizard for an account.</p>
@@ -111,24 +138,39 @@
     </form>
   </section>
 
-  <div id="boardView" class="layout hidden">
-    <div>
-      <h1>How the homelab is doing</h1>
-      <div class="summary" id="summary" role="status" aria-live="polite"></div>
-      <div id="groups"></div>
-    </div>
-    <section class="chat" aria-label="Help desk chat">
-      <h2>Ask T.I.T.A.N</h2>
-      <p class="hint">Say what's wrong ("the game server won't start"). I can check things and offer safe fixes; you press Yes.</p>
-      <div class="log" id="log" role="log" aria-live="polite"></div>
-      <form class="chatform" id="chatForm">
-        <label for="chatText" class="hidden">Message</label>
-        <textarea id="chatText" placeholder="What's up?" maxlength="2000" aria-label="Message"></textarea>
-        <button type="submit" id="chatSend">Send</button>
-      </form>
-    </section>
-  </div>
+</div>
 
+<div id="boardView" class="hidden">
+  <section class="chat" aria-label="Chat" style="border-radius:0;margin:0;padding:0;border-left:0;border-right:0;border-top:0">
+    <div class="wrap">
+      <div class="tabs" role="tablist" aria-label="Chats">
+        <button class="quiet" role="tab" id="tabMe" aria-selected="true" aria-controls="paneMe">T.I.T.A.N</button>
+        <button class="quiet" role="tab" id="tabRoom" aria-selected="false" aria-controls="paneRoom">#room <span id="roomNew"></span></button>
+      </div>
+      <div class="panes">
+        <div class="pane" id="paneMe">
+          <h2><span>You and T.I.T.A.N</span><span>only you see this</span></h2>
+          <div class="log" id="log" role="log" aria-live="polite"></div>
+          <form class="ask" id="chatForm">
+            <input id="chatText" maxlength="2000" autocomplete="off" aria-label="Message to T.I.T.A.N" placeholder="What's wrong? (the game server won't start)">
+            <button type="submit" id="chatSend">Send</button>
+          </form>
+        </div>
+        <div class="pane off" id="paneRoom">
+          <h2><span>#room</span><span>everyone signed in · /agent asks T.I.T.A.N</span></h2>
+          <div class="irc" id="irc" role="log" aria-live="polite" aria-label="Room chat"></div>
+          <form class="ask" id="roomForm">
+            <input id="roomText" maxlength="500" autocomplete="off" aria-label="Message to the room" placeholder="Say hi. /agent is plex up? asks T.I.T.A.N here">
+            <button type="submit" id="roomSend">Send</button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </section>
+  <main class="wrap"><div id="groups"></div></main>
+</div>
+
+<div class="wrap">
   <div id="ownerView" class="hidden">
     <section>
       <h2>Inbox</h2>
@@ -162,18 +204,27 @@
       <p class="msg" id="pwMsg" role="status" aria-live="polite"></p>
     </form>
   </section>
-</main>
+</div>
+
+<dialog id="upd" aria-labelledby="updTitle">
+  <div class="dlg-head"><h2 id="updTitle">Updates</h2><button class="quiet" id="updClose" aria-label="Close updates">Close</button></div>
+  <p class="hint" id="updMeta"></p>
+  <div style="display:flex;gap:6px;flex-wrap:wrap;margin:0 0 8px"><button class="quiet" id="onIt">I'm on it</button><button class="quiet" id="offIt">I'm done</button></div>
+  <form id="updForm" style="display:flex;gap:6px"><input id="updText" maxlength="500" aria-label="Post an update" placeholder="Post an update (what you saw, what you tried)"><button type="submit">Post</button></form>
+  <p class="msg" id="updMsg" role="status" aria-live="polite"></p>
+  <ul class="tl" id="updList"></ul>
+</dialog>
 
 <script>
 const $ = id => document.getElementById(id);
-let me = null, timer = null;
+let me = null, timer = null, cards = [];
 
 function el(tag, attrs, ...kids) {
   const e = document.createElement(tag);
   for (const [k, v] of Object.entries(attrs || {})) {
-    if (k === 'class') e.className = v; else if (k.startsWith('on')) e.addEventListener(k.slice(2), v); else if (v !== null && v !== undefined) e.setAttribute(k, v);
+    if (k === 'class') e.className = v; else if (k.startsWith('on')) e.addEventListener(k.slice(2), v); else if (v !== null && v !== undefined && v !== false) e.setAttribute(k, v);
   }
-  for (const k of kids) if (k !== null && k !== undefined) e.append(k);
+  for (const k of kids) if (k !== null && k !== undefined && k !== false) e.append(k);
   return e;
 }
 
@@ -189,83 +240,94 @@ async function api(path, opts = {}) {
 }
 
 function show(view) {
-  for (const v of ['login', 'board', 'owner', 'account']) $(v + 'View').classList.toggle('hidden', v !== view);
+  $('loginView').classList.toggle('hidden', view !== 'login');
+  $('boardView').classList.toggle('hidden', view !== 'board');
+  $('ownerView').classList.toggle('hidden', view !== 'owner');
+  $('accountView').classList.toggle('hidden', view !== 'account');
   $('nav').classList.toggle('hidden', view === 'login');
   document.querySelectorAll('nav [data-view]').forEach(b => { if (b.dataset.view === view) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current'); });
-  if (view === 'board') loadBoard();
-  if (view === 'owner') loadOwner();
   clearInterval(timer);
-  if (view === 'board') timer = setInterval(loadBoard, 30000);
+  clearInterval(roomTimer);
+  if (view === 'board') { loadBoard(); timer = setInterval(loadBoard, 30000); loadRoom(); roomTimer = setInterval(loadRoom, 4000); }
+  if (view === 'owner') loadOwner();
 }
 
 const ago = s => { const d = Math.max(0, Date.now() / 1000 - s); return d < 60 ? Math.round(d) + 's ago' : d < 3600 ? Math.round(d / 60) + ' min ago' : d < 172800 ? Math.round(d / 3600) + ' h ago' : Math.round(d / 86400) + ' days ago'; };
 const pct = v => v < 0 ? '–' : v + '%';
-const words = { up: 'Up', down: 'Down', pending: 'Waiting' };
+const stateOf = c => c.cause ? 'knock' : c.status;
+const words = { up: 'Up', down: 'Down', pending: 'Waiting', knock: 'Blocked' };
 
 async function loadBoard() {
   let data;
-  try { data = await api('/api/board'); } catch (e) { $('summary').replaceChildren(el('span', { class: 'msg bad' }, e.message)); return; }
-  const s = data.services, up = s.filter(x => x.status === 'up').length, down = s.filter(x => x.status === 'down' && !x.cause).length, knock = s.filter(x => x.cause).length;
-  $('summary').replaceChildren(
+  try { data = await api('/api/board'); } catch (e) { $('groups').replaceChildren(el('p', { class: 'msg bad' }, e.message)); return; }
+  cards = data.services;
+  const up = cards.filter(c => c.status === 'up').length, down = cards.filter(c => c.status === 'down' && !c.cause).length, knock = cards.filter(c => c.cause).length;
+  const last = Math.max(0, ...cards.map(c => c.checked_at || 0));
+  $('stats').replaceChildren(
     el('span', { class: 'pill up' }, up + ' up'),
     el('span', { class: 'pill' + (down ? ' down' : '') }, down + ' down'),
-    knock ? el('span', { class: 'pill' }, knock + ' down because of those') : null,
-    el('span', { class: 'pill' }, s.length + ' services'));
+    knock ? el('span', { class: 'pill knock' }, knock + ' blocked by those') : null,
+    last ? el('span', { class: 'pill' }, 'checked ' + ago(last)) : null);
   const groups = {};
-  for (const c of s) (groups[c.group] ||= []).push(c);
+  for (const c of cards) (groups[c.group] ||= []).push(c);
+  const order = { down: 0, knock: 1, pending: 2, up: 3 };
   const out = [];
-  for (const [g, cards] of Object.entries(groups)) {
-    out.push(el('h3', {}, g));
-    out.push(el('div', { class: 'cards' }, ...cards.map(card)));
+  for (const g of Object.keys(groups).sort()) {
+    const list = groups[g].sort((a, b) => order[stateOf(a)] - order[stateOf(b)] || a.name.localeCompare(b.name));
+    const bad = list.filter(c => c.status !== 'up').length;
+    out.push(el('div', { class: 'group' },
+      el('h3', {}, g, el('span', {}, bad ? bad + ' need attention' : 'all good')),
+      el('div', { class: 'rows' }, ...list.map(row))));
   }
-  if (!s.length) out.push(el('p', { class: 'hint' }, "Nothing to show yet. Ask Wizard which services you can see."));
+  if (!cards.length) out.push(el('p', { class: 'hint' }, 'Nothing to show yet. Ask Wizard which services you can see.'));
   $('groups').replaceChildren(...out);
 }
 
-function card(c) {
+function row(c) {
+  const st = stateOf(c);
   const beats = el('div', { class: 'beats', 'aria-label': 'Last ' + c.beats.length + ' checks' });
   for (let i = c.beats.length; i < 40; i++) beats.append(el('i', { class: 'e' }));
   for (const b of c.beats) beats.append(el('i', { class: b ? '' : 'd' }));
-  const box = el('div', { class: 'acts' });
-  for (const a of c.actions) box.append(el('button', { class: 'quiet small', onclick: () => act(c, a, box) }, a.label));
-  return el('article', { class: 'svc ' + c.status + (c.cause ? ' knock' : ''), 'aria-label': c.name + ': ' + words[c.status] + (c.cause ? ', because ' + c.cause + ' is down' : '') },
-    el('div', { class: 'name' }, el('b', {}, c.name + (c.personal ? ' (yours)' : '')), el('span', { class: 'badge ' + c.status }, words[c.status])),
-    c.about ? el('div', { class: 'about' }, c.about) : null,
-    el('div', { class: 'detail' }, c.detail),
-    c.cause ? el('div', { class: 'cause' }, 'Because ' + c.cause + ' is down') : null,
-    c.info.length ? el('ul', { class: 'facts' }, ...c.info.map(f => el('li', {}, f))) : null,
+  const msg = el('div', { class: 'rowmsg', role: 'status', 'aria-live': 'polite' });
+  const acts = el('div', { class: 'acts' });
+  if (c.status === 'down') acts.append(el('button', { class: 'askb', onclick: () => askAbout(c) }, 'Ask T.I.T.A.N'));
+  for (const a of c.actions) acts.append(el('button', { class: 'quiet', onclick: () => act(c, a, msg) }, a.label));
+  acts.append(el('button', { class: 'quiet', 'aria-label': 'Updates for ' + c.name, onclick: () => openUpdates(c) }, 'Updates' + (c.updates_24h ? ' (' + c.updates_24h + ')' : '')));
+  return el('div', { class: 'row' },
+    el('div', { class: 'st ' + st }, el('i'), words[st]),
+    el('div', { class: 'what' },
+      el('div', {}, el('b', {}, c.name + (c.personal ? ' (yours)' : '')), ' ', el('span', { class: 'd' }, c.detail)),
+      c.cause ? el('div', { class: 'c' }, '↳ because ' + c.cause + ' is down') : null,
+      c.info.length ? el('div', { class: 'x' }, c.info.join(' · ')) : null,
+      c.working.length ? el('div', { class: 'w' }, '🛠 ' + c.working.join(', ') + ' on it') : null),
     beats,
-    el('div', { class: 'ups' }, el('span', {}, '24h ', el('b', {}, pct(c.uptime['24h']))), el('span', {}, '7d ', el('b', {}, pct(c.uptime['7d']))), el('span', {}, '30d ', el('b', {}, pct(c.uptime['30d']))), c.ms ? el('span', {}, c.ms + ' ms') : null),
-    c.checked_at ? el('div', { class: 'when' }, 'Checked ' + ago(c.checked_at)) : null,
-    c.actions.length ? box : null);
+    el('div', { class: 'pct', title: '7 days ' + pct(c.uptime['7d']) + ', 30 days ' + pct(c.uptime['30d']) }, el('b', {}, pct(c.uptime['24h'])), el('br'), '24h'),
+    acts, msg);
 }
 
-async function act(c, a, box) {
+async function act(c, a, msg) {
   if (a.action === 'recent_problems') return showLogs(c);
   try {
     const p = await api('/api/propose', { method: 'POST', body: { service: c.id, action: a.action } });
-    if (a.action === 'check_now') return decide(p, true, box);
-    confirmBox(p, box);
-  } catch (e) { box.append(el('p', { class: 'msg bad', role: 'status' }, e.message)); }
+    if (a.action === 'check_now') return decide(p, true, msg);
+    msg.replaceChildren(confirmBox(p));
+  } catch (e) { msg.replaceChildren(el('p', { class: 'msg bad' }, e.message)); }
 }
 
-function confirmBox(p, where) {
-  const msg = el('p', { class: 'msg', role: 'status', 'aria-live': 'polite' });
-  const yes = el('button', { class: 'small', 'aria-label': 'Yes: ' + p.label, onclick: () => decide(p, true, msg, [yes, no]) }, 'Yes');
-  const no = el('button', { class: 'quiet small', 'aria-label': 'No: ' + p.label, onclick: () => decide(p, false, msg, [yes, no]) }, 'No');
-  const b = el('div', { class: 'confirm' }, el('span', {}, p.label + '?'), el('div', { class: 'row' }, yes, no), msg);
-  where.append(b);
-  yes.focus();
+function confirmBox(p) {
+  const out = el('span', { class: 'msg', role: 'status' });
+  const yes = el('button', { 'aria-label': 'Yes: ' + p.label, onclick: () => decide(p, true, out, [yes, no]) }, 'Yes');
+  const no = el('button', { class: 'quiet', 'aria-label': 'No: ' + p.label, onclick: () => decide(p, false, out, [yes, no]) }, 'No');
+  setTimeout(() => yes.focus(), 0);
+  return el('div', { class: 'confirm' }, el('span', {}, p.label + '?'), yes, no, out);
 }
 
 async function decide(p, yes, where, buttons = []) {
   buttons.forEach(b => b.disabled = true);
-  const target = where.classList && where.classList.contains('msg') ? where : (() => { const m = el('p', { class: 'msg', role: 'status' }); where.append(m); return m; })();
+  const target = where.classList.contains('msg') ? where : (() => { const m = el('span', { class: 'msg', role: 'status' }); where.replaceChildren(m); return m; })();
   target.textContent = yes ? 'Working on it…' : '';
-  try {
-    const r = await api('/api/proposals/' + encodeURIComponent(p.id), { method: 'POST', body: { yes } });
-    target.className = 'msg good'; target.textContent = r.result;
-  } catch (e) { target.className = 'msg bad'; target.textContent = e.message; }
+  try { const r = await api('/api/proposals/' + encodeURIComponent(p.id), { method: 'POST', body: { yes } }); target.className = 'msg good'; target.textContent = r.result; }
+  catch (e) { target.className = 'msg bad'; target.textContent = e.message; }
   setTimeout(loadBoard, 1500);
 }
 
@@ -278,27 +340,133 @@ async function showLogs(c) {
   catch (e) { $('logs').textContent = e.message; }
 }
 
-function bubble(kind, text, who) {
-  const b = el('div', { class: 'bubble ' + kind }, who ? el('span', { class: 'who' }, who) : null, text);
+// ---- chat: short caveman answers, Explain for the long one ----
+const onlyEmoji = t => /^\p{Extended_Pictographic}[\u{FE0F}\u{200D}\p{Extended_Pictographic}]*$/u.test(t.trim());
+function say(kind, text) {
+  const b = el('div', { class: 'b ' + kind + (kind === 'bot' && onlyEmoji(text) ? ' emoji' : '') }, text);
   $('log').append(b); $('log').scrollTop = $('log').scrollHeight;
   return b;
 }
-
-$('chatForm').addEventListener('submit', async ev => {
-  ev.preventDefault();
-  const text = $('chatText').value.trim(); if (!text) return;
-  $('chatText').value = ''; $('chatSend').disabled = true;
-  bubble('me', text, 'You');
-  const wait = bubble('note', 'Thinking…');
+function looking() {
+  const faces = ['👀', '🔎', '🤔', '🔧'];
+  let i = 0;
+  const b = el('div', { class: 'b bot look', 'aria-label': 'T.I.T.A.N is looking' }, faces[0]);
+  $('log').append(b); $('log').scrollTop = $('log').scrollHeight;
+  const t = setInterval(() => { b.textContent = faces[++i % faces.length]; }, 700);
+  return () => { clearInterval(t); b.remove(); };
+}
+async function send(text) {
+  say('me', text);
+  $('chatSend').disabled = true;
+  const done = looking();
   try {
     const t = await api('/api/chat', { method: 'POST', body: { message: text } });
-    wait.remove();
-    const b = bubble('bot', t.reply, 'T.I.T.A.N');
-    for (const p of t.proposals || []) confirmBox(p, b);
-  } catch (e) { wait.textContent = e.message; }
-  $('chatSend').disabled = false; $('chatText').focus();
+    done();
+    const b = say('bot', t.reply);
+    if (!onlyEmoji(t.reply) && t.verdict.verdict === 'allow') {
+      const ex = el('button', { class: 'quiet', onclick: async () => {
+        ex.disabled = true; const stop = looking();
+        try { const r = await api('/api/explain', { method: 'POST', body: {} }); b.append(el('div', { class: 'explained' }, r.reply)); }
+        catch (e) { b.append(el('div', { class: 'explained msg bad' }, e.message)); }
+        stop(); ex.remove();
+      } }, 'Explain');
+      const rs = el('button', { class: 'quiet', onclick: () => { $('chatText').focus(); } }, 'Respond');
+      b.append(el('div', { class: 'more' }, ex, rs));
+    }
+    for (const p of t.proposals || []) b.append(confirmBox(p));
+  } catch (e) { done(); say('bot', e.message); }
+  $('chatSend').disabled = false;
+  $('log').scrollTop = $('log').scrollHeight;
+}
+$('chatForm').addEventListener('submit', ev => {
+  ev.preventDefault();
+  const text = $('chatText').value.trim(); if (!text) return;
+  $('chatText').value = '';
+  send(text);
 });
-$('chatText').addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); $('chatForm').requestSubmit(); } });
+function askAbout(c) { window.scrollTo({ top: 0, behavior: 'smooth' }); send(c.name + ' is down. Can you check on it?'); }
+
+// ---- the room: IRC style, everyone signed in ----
+let roomLast = 0, roomTimer = null, roomUnseen = 0, roomOn = true;
+const hhmm = t => new Date(t * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+function roomLine(l) {
+  const mine = me && l.author === me.name;
+  const nick = l.bot ? 'T.I.T.A.N' : l.author;
+  const p = el('p', { class: l.bot ? 'bot' : '', 'data-id': l.id },
+    el('span', { class: 'ts' }, '[' + hhmm(l.at) + '] '),
+    el('span', { class: 'nick' + (mine ? ' mine' : '') }, '<' + nick + '> '),
+    l.removed ? el('span', { class: 'gone' }, '(removed by ' + (me.owner_name || 'the owner') + ')') : el('span', { class: 'tx' }, l.text));
+  if (me && me.role === 'owner' && !l.removed) p.append(el('button', { class: 'rm', 'aria-label': 'Remove this line', onclick: async () => {
+    try { await api('/api/owner/room/' + l.id, { method: 'DELETE' }); p.replaceWith(roomLine({ ...l, removed: true })); } catch (e) { $('irc').append(el('p', { class: 'gone' }, '* ' + e.message)); }
+  } }, 'remove'));
+  const out = [p];
+  for (const pr of l.proposals || []) out.push(confirmBox(pr));
+  return out;
+}
+function addLines(ls) {
+  const box = $('irc'), stick = box.scrollHeight - box.scrollTop - box.clientHeight < 40;
+  for (const l of ls) {
+    if (l.id <= roomLast) continue;
+    roomLast = l.id;
+    box.append(...roomLine(l));
+    if ($('paneRoom').classList.contains('off') && !l.bot && l.author !== me.name) roomUnseen++;
+  }
+  $('roomNew').textContent = roomUnseen ? '(' + roomUnseen + ')' : '';
+  if (stick) box.scrollTop = box.scrollHeight;
+}
+async function loadRoom() {
+  if (!roomOn) return;
+  try { const r = await api('/api/room?after=' + roomLast); addLines(r.lines); }
+  catch (e) { if (/turned off/.test(e.message)) { roomOn = false; $('paneRoom').remove(); $('tabRoom').remove(); document.querySelector('.panes').style.gridTemplateColumns = 'minmax(0,1fr)'; } }
+}
+$('roomForm').addEventListener('submit', async ev => {
+  ev.preventDefault();
+  const text = $('roomText').value.trim(); if (!text) return;
+  $('roomText').value = ''; $('roomSend').disabled = true;
+  let wait = null;
+  if (/^\/(agent|titan)\b/.test(text)) { wait = el('p', { class: 'bot' }, el('span', { class: 'ts' }, '[' + hhmm(Date.now() / 1000) + '] '), el('span', { class: 'nick' }, '<T.I.T.A.N> '), el('span', { class: 'tx' }, '👀 looking…')); }
+  try {
+    if (wait) { $('irc').append(wait); $('irc').scrollTop = $('irc').scrollHeight; }
+    await api('/api/room', { method: 'POST', body: { text } });
+    if (wait) wait.remove(); wait = null;
+    await loadRoom(); // fetch from where we were, so nobody else's lines get skipped
+  } catch (e) { if (wait) wait.remove(); wait = null; $('irc').append(el('p', { class: 'gone' }, '* ' + e.message)); }
+  $('roomSend').disabled = false; $('roomText').focus();
+});
+function tab(which) {
+  const room = which === 'room';
+  $('paneMe').classList.toggle('off', room); $('paneRoom').classList.toggle('off', !room);
+  $('tabMe').setAttribute('aria-selected', String(!room)); $('tabRoom').setAttribute('aria-selected', String(room));
+  if (room) { roomUnseen = 0; $('roomNew').textContent = ''; $('irc').scrollTop = $('irc').scrollHeight; }
+}
+$('tabMe').addEventListener('click', () => tab('me'));
+$('tabRoom').addEventListener('click', () => tab('room'));
+
+// ---- updates popup ----
+let updCard = null;
+async function openUpdates(c) {
+  updCard = c; $('updTitle').textContent = 'Updates: ' + c.name; $('updMsg').textContent = '';
+  $('upd').showModal(); await loadUpdates();
+}
+async function loadUpdates() {
+  const c = updCard;
+  try {
+    const r = await api('/api/updates/' + encodeURIComponent(c.id));
+    const chk = r.checked && r.checked[0];
+    $('updMeta').textContent = (chk ? 'Last check ' + ago(chk.at) + ': ' + chk.detail + '. ' : '') + (r.working.length ? r.working.join(', ') + ' working on it.' : 'Nobody is working on it.');
+    $('updList').replaceChildren(...(r.updates.length ? r.updates.map(u => el('li', {},
+      el('div', { class: 't' }, new Date(u.at * 1000).toLocaleString() + ' · ', el('span', { class: u.bot ? 'bot' : '' }, u.bot ? 'T.I.T.A.N' : u.author)), u.text)) :
+      [el('li', { class: 'hint' }, 'No updates yet.')]));
+  } catch (e) { $('updMsg').className = 'msg bad'; $('updMsg').textContent = e.message; }
+}
+async function postUpdate(body) {
+  try { await api('/api/updates/' + encodeURIComponent(updCard.id), { method: 'POST', body }); if (body.text !== undefined) $('updText').value = ''; $('updMsg').textContent = ''; await loadUpdates(); loadBoard(); }
+  catch (e) { $('updMsg').className = 'msg bad'; $('updMsg').textContent = e.message; }
+}
+$('updForm').addEventListener('submit', ev => { ev.preventDefault(); postUpdate({ text: $('updText').value }); });
+$('onIt').addEventListener('click', () => postUpdate({ working: true }));
+$('offIt').addEventListener('click', () => postUpdate({ working: false }));
+$('updClose').addEventListener('click', () => $('upd').close());
 
 async function loadOwner() {
   try {
@@ -347,7 +515,7 @@ $('loginForm').addEventListener('submit', async ev => {
   try { await api('/api/login', { method: 'POST', body: { name: $('lname').value, password: $('lpass').value } }); $('lpass').value = ''; start(); }
   catch (e) { $('loginMsg').textContent = e.message; }
 });
-$('signout').addEventListener('click', async () => { try { await api('/api/logout', { method: 'POST' }); } catch {} me = null; $('log').replaceChildren(); show('login'); });
+$('signout').addEventListener('click', async () => { try { await api('/api/logout', { method: 'POST' }); } catch {} me = null; $('log').replaceChildren(); $('irc').replaceChildren(); roomLast = 0; show('login'); });
 document.querySelectorAll('nav [data-view]').forEach(b => b.addEventListener('click', () => show(b.dataset.view)));
 
 async function start() {
@@ -355,7 +523,7 @@ async function start() {
   $('whoami').textContent = me.name + ' · ' + me.role;
   $('ownerTab').classList.toggle('hidden', me.role !== 'owner');
   if (me.faith_url) { $('faith').href = me.faith_url; $('faith').classList.remove('hidden'); } else $('faith').classList.add('hidden');
-  if (!$('log').children.length) bubble('bot', 'Hi ' + me.name + '. Ask me how things are, or tell me what isn\'t working.', 'T.I.T.A.N');
+  if (!$('log').children.length) say('bot', '👋 Hi ' + me.name + '. Something broke? Tell me.');
   show('board');
 }
 start();
