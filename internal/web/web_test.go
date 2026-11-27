@@ -259,7 +259,7 @@ func newWorld(t *testing.T) *world {
 	}
 	hd := &hands.Client{URL: handsSrv.URL, Token: "hands-token-0123456789"}
 	runner := &checks.Runner{Cfg: cfg, DB: d, Hands: hd, HTTP: http.DefaultClient}
-	app := &App{Cfg: cfg, DB: d, Auth: a, Runner: runner, Hands: hd, HTTP: http.DefaultClient, ExportToken: "export-token", Salt: "s", OwnerName: "Wizard", recheck: time.Millisecond}
+	app := &App{Cfg: cfg, DB: d, Auth: a, Runner: runner, Hands: hd, HTTP: http.DefaultClient, ExportToken: "export-token", GlanceToken: "glance-token", Salt: "s", OwnerName: "Wizard", recheck: time.Millisecond}
 	app.Agent = &agent.Agent{Models: &agent.Models{URL: argos.URL}, Guard: cfg.Models.Guard, Helper: cfg.Models.Agent, Fallback: cfg.Models.Fallback, Tools: app, Owner: "Wizard"}
 	runner.OnChange = app.OnChange
 	runner.Round(ctx)
@@ -607,6 +607,59 @@ func TestTitan_EventsFeedNeedsToken(t *testing.T) {
 	}
 	if get("") != 401 || get("nope") != 401 || get("export-token") != 200 {
 		t.Fatal("feed must need TITAN_EXPORT_TOKEN")
+	}
+}
+
+func TestTitan_GlanceNeedsTokenAndHidesPersonal(t *testing.T) {
+	w := newWorld(t)
+	get := func(tok string) (int, map[string]any) {
+		req, _ := http.NewRequest("GET", w.srv.URL+"/api/glance", nil)
+		if tok != "" {
+			req.Header.Set("Authorization", "Bearer "+tok)
+		}
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer resp.Body.Close()
+		var out map[string]any
+		json.NewDecoder(resp.Body).Decode(&out)
+		return resp.StatusCode, out
+	}
+	if c, _ := get(""); c != 401 {
+		t.Fatalf("no token: %d", c)
+	}
+	if c, _ := get("export-token"); c != 401 {
+		t.Fatalf("the Overseer token must not open the glance: %d", c)
+	}
+	c, g := get("glance-token")
+	if c != 200 {
+		t.Fatalf("glance: %d %v", c, g)
+	}
+	names := map[string]string{}
+	for _, s := range g["services"].([]any) {
+		m := s.(map[string]any)
+		names[m["name"].(string)] = m["status"].(string)
+	}
+	if _, ok := names["Sam's Hermes"]; ok {
+		t.Fatal("glance must not show personal services")
+	}
+	if _, ok := names["Outside access"]; ok {
+		t.Fatal("glance must not show owner-only services")
+	}
+	if _, ok := names["Minecraft"]; !ok {
+		t.Fatalf("glance misses Minecraft: %v", names)
+	}
+	total := int(g["up"].(float64) + g["down"].(float64) + g["pending"].(float64))
+	if total != len(names) {
+		t.Fatalf("counts %d vs %d services", total, len(names))
+	}
+	if g["down"].(float64) > 0 && len(g["down_list"].([]any)) == 0 {
+		t.Fatal("down services must be listed")
+	}
+	w.app.GlanceToken = ""
+	if c, _ := get("glance-token"); c != 503 {
+		t.Fatalf("glance off: %d", c)
 	}
 }
 

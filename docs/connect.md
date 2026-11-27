@@ -58,6 +58,18 @@ These are read-only API calls with keys from env vars, set up per app: `info:` o
 
 `link: http://...` on any service in `titan.yaml` adds the same Open button.
 
+## 5. DASH, the handheld
+
+DASH's T.I.T.A.N mod reads `GET /api/glance` with `Authorization: Bearer <TITAN_GLANCE_TOKEN>`. It gets counts (up, down, pending, owner notes), up to 6 down services with the reason and the "down because" service, and up to 40 services with their status:
+
+```json
+{"up": 11, "down": 1, "pending": 0, "notes": 2, "every": 60,
+ "down_list": [{"name": "Plex", "detail": "no answer", "cause": "Outside access"}],
+ "services": [{"name": "Plex", "status": "down"}]}
+```
+
+It sees what a family member sees in the room: no one's personal services, no actions, no chat. It's off (503) until `TITAN_GLANCE_TOKEN` is set. Use a different token from `TITAN_EXPORT_TOKEN`.
+
 ## What's not connected (yet)
 
 - **Argos's system monitor** sees only Argos's own box (CPU, GPUs). T.I.T.A.N can show GPU numbers from `GET /api/gpu/latest` with a `json` info line, but that's not a source of containers.

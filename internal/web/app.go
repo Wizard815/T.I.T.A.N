@@ -36,6 +36,7 @@ type App struct {
 	Agent       *agent.Agent
 	HTTP        *http.Client
 	ExportToken string // Overseer's bearer token for /api/events
+	GlanceToken string // DASH's bearer token for /api/glance (read-only)
 	Salt        string // for pseudonyms in events
 	OwnerName   string // shown to people, e.g. "Wizard"
 	Secure      bool   // Secure cookies (behind HTTPS)
