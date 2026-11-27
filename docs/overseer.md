@@ -3,7 +3,7 @@
 Overseer is Wizard's alone. It never signs anyone in to T.I.T.A.N. It only reads this feed to collect training data.
 
 ```
-GET http://titan:8110/api/events?after_id=0&limit=500
+GET http://titan:8130/api/events?after_id=0&limit=500
 Authorization: Bearer <TITAN_EXPORT_TOKEN>
 ```
 

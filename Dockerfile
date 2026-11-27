@@ -12,6 +12,6 @@ RUN apk add --no-cache ca-certificates tzdata && mkdir -p /data /config
 COPY --from=build /out/ /
 COPY titan.example.yaml /config/titan.example.yaml
 ENV TITAN_CONFIG=/config/titan.yaml TITAN_DATA=/data/titan.db
-EXPOSE 8110
-HEALTHCHECK --interval=30s --timeout=5s CMD wget -qO- http://127.0.0.1:8110/health || exit 1
+EXPOSE 8130
+HEALTHCHECK --interval=30s --timeout=5s CMD wget -qO- http://127.0.0.1:8130/health || exit 1
 ENTRYPOINT ["/titan"]

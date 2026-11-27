@@ -31,7 +31,7 @@ It's like Uptime Kuma, but it shows more on each card. It also has a chat that c
 1. `mkdir -p /mnt/user/appdata/titan/{config,data}` and copy `titan.example.yaml` to `config/titan.yaml`. List your services.
 2. Copy `.env.example` to `.env`. Set `TITAN_HANDS_TOKEN`, `TITAN_HANDS_CONTAINERS` (the containers titan-hands may touch), `TITAN_FIRST_PASSWORD` and `TITAN_EXPORT_TOKEN`.
 3. In Argos, make the model names `titan-guard`, `titan-agent` and `titan-fallback` (see [docs/models.md](docs/models.md)).
-4. `docker compose up -d --build`, then open `http://<unraid>:8110` and sign in as `wizard`.
+4. `docker compose up -d --build`, then open `http://<unraid>:8130` and sign in as `wizard`.
 5. Add people on the **Owner** page, or with `docker exec -it titan /titan user add sam family`.
 
 `docker exec titan /titan check` checks `titan.yaml` and tells you what's wrong.

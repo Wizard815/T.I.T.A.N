@@ -7,7 +7,7 @@ services:
     build: .
     container_name: titan
     restart: unless-stopped
-    ports: ["8110:8110"]
+    ports: ["8130:8130"]
     env_file: .env
     volumes:
       - /mnt/user/appdata/titan/config:/config

@@ -179,7 +179,7 @@ func serve(cfgPath, dataPath string, d *db.DB, a *auth.Auth) error {
 	runner.OnChange = app.OnChange
 	go runner.Run(ctx)
 
-	addr := env("TITAN_ADDR", ":8110")
+	addr := env("TITAN_ADDR", ":8130")
 	srv := &http.Server{Addr: addr, Handler: app.Handler(), ReadHeaderTimeout: 10 * time.Second}
 	go func() {
 		<-ctx.Done()

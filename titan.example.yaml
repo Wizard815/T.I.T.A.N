@@ -18,14 +18,15 @@ hands:
   token_env: TITAN_HANDS_TOKEN
 
 notify:
-  ntfy_url: ""              # e.g. http://ntfy:80/titan to get a ping when something needs you
+  ntfy_url: ""              # e.g. http://odysseus-ntfy-1/titan (your Odysseus ntfy) for a ping when something needs you
 
-faith_url: http://192.168.20.5:8097   # "Ask FAITH" link for family
+faith_url: http://192.168.20.5:8097   # "Ask FAITH" link for family (guess at the Unraid IP)
+
 
 kuma:
-  url: http://uptime-kuma:3001
-  slug: home                # a published status page
-  import_all: true          # show its other monitors too (read only)
+  url: http://uptime-kuma:3001   # or http://192.168.20.5:3002 if Kuma isn't on ai_net
+  slug: home                     # a published status page
+  import_all: true               # show its other monitors too (read only)
   audience: family
 
 check_every: 60s
@@ -37,15 +38,34 @@ limits:
 # audience: who sees it (friends, family, owner). fix_by: who may ask for its
 # fixes (defaults to audience). person: only that account (and the owner).
 # actions: check_now, start_service, restart_service, run_sync, recent_problems.
+# Container names below are from Wizard's Unraid list (2026-11-27); every one
+# you allow fixes for must also be in TITAN_HANDS_CONTAINERS.
 services:
-  - id: minecraft
-    name: Minecraft
+  # Games. Enshrouded runs inside AMP: restarting the AMP container would stop
+  # every instance, so for now it's watched only (AMP instance control is planned).
+  - id: amp
+    name: Game servers (AMP)
     group: Games
-    about: The family world. Ask here if you can't join.
+    about: Runs the Enshrouded server.
     audience: friends
-    container: minecraft
+    container: AMP
     check: {container: true}
-    actions: [start_service, restart_service, recent_problems]
+
+  - id: plex
+    name: Plex
+    group: Media
+    audience: friends
+    container: binhex-plexpass
+    check: {container: true}
+    actions: [restart_service]
+    fix_by: family
+
+  - id: seerr
+    name: Requests (Seerr)
+    group: Media
+    audience: friends
+    container: Seerr
+    check: {http: http://Seerr:5055/api/v1/status}
 
   - id: faith
     name: FAITH
@@ -56,24 +76,50 @@ services:
     check: {http: http://faith:8097/health}
     actions: [restart_service, recent_problems]
 
-  - id: dnd-sync
-    name: DnD sync
+  - id: wiki
+    name: Family wiki
     group: Family
-    about: Campaign notes into the wiki.
     audience: family
-    sync: dnd
-    check:
-      freshness: {url: http://dnd-sync:8080/status, field: last_sync, max_age: 6h}
-    actions: [run_sync]
+    container: LLMWIKI
+    check: {container: true}
+    actions: [restart_service]
 
-  - id: jellyfin
-    name: Jellyfin
-    group: Media
+  - id: immich
+    name: Photos (Immich)
+    group: Family
     audience: family
-    check: {kuma: Jellyfin}
+    container: immich
+    check: {container: true}
+    actions: [restart_service]
+
+  - id: mealie
+    name: Recipes (Mealie)
+    group: Family
+    audience: family
+    container: mealiev1
+    check: {container: true}
+    actions: [restart_service]
+
+  # The DnD sync: a guess until Wizard confirms which job it is
+  # (LegendKeeper or Kanka). Point freshness at its status and sync at the job.
+  # - id: dnd-sync
+  #   name: DnD sync
+  #   group: Family
+  #   audience: family
+  #   sync: dnd
+  #   check:
+  #     freshness: {url: http://legendkeepermcp:9989/status, field: last_sync, max_age: 6h}
+  #   actions: [run_sync]
 
   - id: argos
     name: Argos
     group: Homelab
     audience: owner
     check: {http: http://argos:8080/health}
+
+  - id: tunnel
+    name: Outside access (Cloudflare tunnel)
+    group: Homelab
+    audience: owner
+    container: Unraid-Cloudflared-Tunnel
+    check: {container: true}
