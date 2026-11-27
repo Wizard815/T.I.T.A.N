@@ -1,0 +1,12 @@
+argos: {url: http://127.0.0.1:9900/v1}
+models: {guard: titan-guard, agent: titan-agent, fallback: titan-fallback}
+hands: {url: http://127.0.0.1:9911}
+faith_url: http://faith.local:8097
+kuma: {url: http://127.0.0.1:9900/kuma, slug: home, import_all: true, audience: family}
+check_every: 15s
+services:
+  - {id: minecraft, name: Minecraft, group: Games, about: "The family world. Ask here if you can't join.", audience: friends, container: minecraft, check: {container: true}, actions: [start_service, restart_service, recent_problems]}
+  - {id: valheim, name: Valheim, group: Games, audience: friends, container: valheim, check: {container: true}, actions: [restart_service]}
+  - {id: faith, name: FAITH, group: Family, about: The family assistant., audience: family, container: faith, check: {http: "http://127.0.0.1:9900/faith/health"}, actions: [restart_service, recent_problems]}
+  - {id: dnd-sync, name: DnD sync, group: Family, about: Campaign notes into the wiki., audience: family, sync: dnd, check: {freshness: {url: "http://127.0.0.1:9900/dnd/status", field: last_sync, max_age: 6h}}, actions: [run_sync]}
+  - {id: sams-hermes, name: Sam's Hermes, group: Family, audience: family, person: sam, container: hermes-sam, check: {container: true}, actions: [restart_service]}

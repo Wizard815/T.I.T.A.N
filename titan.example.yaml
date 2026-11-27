@@ -1,0 +1,79 @@
+# T.I.T.A.N settings. Copy to /mnt/user/appdata/titan/titan.yaml.
+# Check it with: docker exec titan /titan check
+
+# Every model call goes through Argos. The names below are Argos model IDs:
+# point them at local or cloud models in Argos (profiles or selectors), not here.
+argos:
+  url: http://argos:8080/v1
+  # api_key_env: ARGOS_API_KEY   # only if your Argos wants a key
+  timeout: 90s
+models:
+  guard: titan-guard        # reads every message first: allow, ask_owner or refuse
+  agent: titan-agent        # the helper that answers and offers fixes
+  fallback: titan-fallback  # used when either of the others fails
+
+# titan-hands is the only thing that can change anything.
+hands:
+  url: http://titan-hands:8111
+  token_env: TITAN_HANDS_TOKEN
+
+notify:
+  ntfy_url: ""              # e.g. http://ntfy:80/titan to get a ping when something needs you
+
+faith_url: http://192.168.20.5:8097   # "Ask FAITH" link for family
+
+kuma:
+  url: http://uptime-kuma:3001
+  slug: home                # a published status page
+  import_all: true          # show its other monitors too (read only)
+  audience: family
+
+check_every: 60s
+keep_days: 90
+limits:
+  per_hour: 3               # the same fix on the same service, per hour (owner exempt)
+  confirm_within: 10m       # a Yes after this is too late
+
+# audience: who sees it (friends, family, owner). fix_by: who may ask for its
+# fixes (defaults to audience). person: only that account (and the owner).
+# actions: check_now, start_service, restart_service, run_sync, recent_problems.
+services:
+  - id: minecraft
+    name: Minecraft
+    group: Games
+    about: The family world. Ask here if you can't join.
+    audience: friends
+    container: minecraft
+    check: {container: true}
+    actions: [start_service, restart_service, recent_problems]
+
+  - id: faith
+    name: FAITH
+    group: Family
+    about: The family assistant.
+    audience: family
+    container: faith
+    check: {http: http://faith:8097/health}
+    actions: [restart_service, recent_problems]
+
+  - id: dnd-sync
+    name: DnD sync
+    group: Family
+    about: Campaign notes into the wiki.
+    audience: family
+    sync: dnd
+    check:
+      freshness: {url: http://dnd-sync:8080/status, field: last_sync, max_age: 6h}
+    actions: [run_sync]
+
+  - id: jellyfin
+    name: Jellyfin
+    group: Media
+    audience: family
+    check: {kuma: Jellyfin}
+
+  - id: argos
+    name: Argos
+    group: Homelab
+    audience: owner
+    check: {http: http://argos:8080/health}

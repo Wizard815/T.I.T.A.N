@@ -1,0 +1,40 @@
+# T.I.T.A.N on Unraid. titan is on ai_net (to reach Argos, FAITH, Kuma) and
+# a private network shared only with titan-hands. Only titan-hands gets the
+# Docker socket, and it is on no other network.
+services:
+  titan:
+    image: titan:latest
+    build: .
+    container_name: titan
+    restart: unless-stopped
+    ports: ["8110:8110"]
+    env_file: .env
+    volumes:
+      - /mnt/user/appdata/titan/config:/config
+      - /mnt/user/appdata/titan/data:/data
+    networks: [ai_net, titan_inside]
+    depends_on: [titan-hands]
+
+  titan-hands:
+    image: titan:latest
+    container_name: titan-hands
+    entrypoint: ["/titan-hands"]
+    restart: unless-stopped
+    environment:
+      TITAN_HANDS_TOKEN: ${TITAN_HANDS_TOKEN:?set TITAN_HANDS_TOKEN in .env}
+      # Only these containers, only these operations. A bare name allows start, restart and logs.
+      TITAN_HANDS_CONTAINERS: ${TITAN_HANDS_CONTAINERS:-}
+      TITAN_HANDS_SYNCS: ${TITAN_HANDS_SYNCS:-}
+      TITAN_HANDS_PER_HOUR: ${TITAN_HANDS_PER_HOUR:-6}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks: [titan_inside]
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8111/health"]
+      interval: 30s
+
+networks:
+  ai_net:
+    external: true
+  titan_inside:
+    internal: true

@@ -1,0 +1,358 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>T.I.T.A.N</title>
+<style>
+  /* The homelab look shared with Overseer, Odysseus and Argos: monospace,
+     teal accent, rounded cards. Dark first; light follows the system. */
+  :root {
+    --bg:#282c34; --card:#1e2228; --panel:#111; --ink:#d7eef5; --head:#9cdef2; --muted:#828997; --line:#355a66;
+    --accent:#32b8c6; --accent-ink:#0c1a1d; --track:#2c3a40; --bad:#e06c75; --good:#50fa7b; --warn:#f0ad4e;
+    --font:'Fira Code', 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    color-scheme: dark;
+  }
+  @media (prefers-color-scheme: light) { :root {
+    --bg:#f5f5f5; --card:#fff; --panel:#eef2f3; --ink:#2b2b2b; --head:#1f6f7a; --muted:#5f6b70; --line:#c9d6da;
+    --accent:#1d97a5; --accent-ink:#fff; --track:#e2eaec; --bad:#b4232f; --good:#23863f; --warn:#9a6200;
+    color-scheme: light;
+  } }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:15px/1.55 var(--font); }
+  header.top { position:sticky; top:0; z-index:2; background:var(--panel); border-bottom:1px solid var(--line); }
+  header.top > div { max-width:1180px; margin:0 auto; padding:8px 16px; display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+  .logo { width:28px; height:28px; flex:none; }
+  header.top b { color:var(--head); font-size:1.05rem; letter-spacing:.08em; }
+  header.top .sub { color:var(--muted); font-size:.82rem; }
+  header.top nav { margin-left:auto; display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  main { max-width:1180px; margin:0 auto; padding:20px 16px 64px; }
+  h1 { font-size:1.3rem; margin:0 0 4px; color:var(--head); }
+  h2 { font-size:1.02rem; margin:0 0 10px; color:var(--head); letter-spacing:.02em; } h2::before { content:"▸ "; color:var(--accent); }
+  h3 { font-size:.9rem; margin:18px 0 8px; color:var(--muted); text-transform:uppercase; letter-spacing:.08em; }
+  section { background:var(--card); border:1px solid var(--line); border-radius:8px; padding:16px; margin:0 0 16px; }
+  label { display:block; font-weight:600; margin:0 0 4px; }
+  input, select, button, textarea { font:inherit; min-height:44px; border-radius:8px; border:1px solid var(--line); background:var(--panel); color:var(--ink); padding:8px 10px; }
+  input, select, textarea { width:100%; }
+  button { background:var(--accent); color:var(--accent-ink); border-color:var(--accent); padding:8px 14px; cursor:pointer; font-weight:600; }
+  button.quiet { background:transparent; color:var(--ink); border-color:var(--line); }
+  button.small { min-height:44px; padding:6px 10px; font-size:.85rem; }
+  button:hover { filter:brightness(1.1); } button:disabled { opacity:.6; cursor:wait; }
+  :focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+  a { color:var(--head); }
+  .hint { color:var(--muted); font-size:.86rem; margin:0 0 8px; }
+  .msg { min-height:1.5em; margin:8px 0 0; } .msg.bad { color:var(--bad); } .msg.good { color:var(--good); }
+  .hidden { display:none !important; }
+  .layout { display:grid; grid-template-columns:minmax(0,1fr) 380px; gap:16px; align-items:start; }
+  @media (max-width:900px) { .layout { grid-template-columns:1fr; } }
+  .summary { display:flex; gap:10px; flex-wrap:wrap; margin:0 0 14px; }
+  .pill { border:1px solid var(--line); border-radius:99px; padding:2px 12px; font-size:.86rem; }
+  .pill.up { color:var(--good); border-color:var(--good); } .pill.down { color:var(--bad); border-color:var(--bad); }
+  .cards { display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:12px; }
+  .svc { background:var(--card); border:1px solid var(--line); border-left:4px solid var(--muted); border-radius:8px; padding:12px; display:flex; flex-direction:column; gap:6px; }
+  .svc.up { border-left-color:var(--good); } .svc.down { border-left-color:var(--bad); }
+  .svc .name { display:flex; justify-content:space-between; gap:8px; align-items:baseline; }
+  .svc .name b { color:var(--head); }
+  .badge { font-size:.78rem; padding:1px 8px; border-radius:99px; border:1px solid currentColor; white-space:nowrap; }
+  .badge.up { color:var(--good); } .badge.down { color:var(--bad); } .badge.pending { color:var(--muted); }
+  .svc .detail { font-size:.88rem; }
+  .svc .about, .svc .when { color:var(--muted); font-size:.8rem; }
+  .beats { display:flex; gap:2px; height:18px; align-items:stretch; }
+  .beats i { flex:1; border-radius:2px; background:var(--good); min-width:3px; }
+  .beats i.d { background:var(--bad); } .beats i.e { background:var(--track); }
+  .ups { display:flex; gap:12px; font-size:.8rem; color:var(--muted); font-variant-numeric:tabular-nums; }
+  .ups b { color:var(--ink); font-weight:600; }
+  .acts { display:flex; gap:6px; flex-wrap:wrap; margin-top:4px; }
+  .confirm { border:1px solid var(--warn); border-radius:8px; padding:8px; display:flex; flex-direction:column; gap:6px; }
+  .confirm .row { display:flex; gap:6px; flex-wrap:wrap; }
+  .chat { position:sticky; top:68px; }
+  .log { height:420px; overflow-y:auto; display:flex; flex-direction:column; gap:8px; padding:4px 2px; margin:0 0 10px; }
+  .bubble { padding:8px 10px; border-radius:8px; border:1px solid var(--line); max-width:92%; white-space:pre-wrap; overflow-wrap:anywhere; font-size:.9rem; }
+  .bubble.me { align-self:flex-end; background:var(--panel); }
+  .bubble.bot { align-self:flex-start; }
+  .bubble.note { align-self:center; color:var(--muted); font-size:.8rem; border-style:dashed; }
+  .bubble .who { display:block; font-size:.72rem; color:var(--muted); margin-bottom:2px; }
+  .chatform { display:flex; gap:8px; } .chatform textarea { min-height:44px; height:60px; resize:vertical; }
+  table { width:100%; border-collapse:collapse; font-size:.88rem; } th, td { text-align:left; padding:6px 4px; border-bottom:1px solid var(--line); vertical-align:middle; }
+  th { color:var(--muted); font-weight:600; }
+  .form-row { display:grid; grid-template-columns:1fr 1fr 1fr auto; gap:8px; align-items:end; }
+  @media (max-width:700px) { .form-row { grid-template-columns:1fr; } }
+  pre.logs { background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:10px; max-height:360px; overflow:auto; font-size:.78rem; white-space:pre-wrap; overflow-wrap:anywhere; }
+  .login { max-width:400px; margin:48px auto; }
+  .login form > div { margin:0 0 12px; }
+</style>
+</head>
+<body>
+<header class="top"><div>
+  <svg class="logo" viewBox="0 0 32 32" aria-hidden="true"><path d="M16 3l11 5v7c0 7-5 12-11 14C10 27 5 22 5 15V8z" fill="none" stroke="var(--accent)" stroke-width="2"/><path d="M10 16l4 4 8-9" fill="none" stroke="var(--head)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+  <div><b>T.I.T.A.N</b><div class="sub">Timely Intelligence for Tasks, Answers, and Navigation</div></div>
+  <nav id="nav" class="hidden" aria-label="Main">
+    <span id="whoami" class="sub"></span>
+    <a id="faith" class="hidden" href="#" target="_blank" rel="noopener">Ask FAITH</a>
+    <button class="quiet small" data-view="board" aria-current="page">Board</button>
+    <button class="quiet small hidden" data-view="owner" id="ownerTab">Owner</button>
+    <button class="quiet small" data-view="account">Account</button>
+    <button class="quiet small" id="signout">Sign out</button>
+  </nav>
+</div></header>
+
+<main>
+  <section id="loginView" class="login hidden">
+    <h1>Sign in</h1>
+    <p class="hint">See how the homelab is doing, and get help when something is down. Ask Wizard for an account.</p>
+    <form id="loginForm">
+      <div><label for="lname">Name</label><input id="lname" autocomplete="username" required></div>
+      <div><label for="lpass">Password</label><input id="lpass" type="password" autocomplete="current-password" required></div>
+      <button type="submit">Sign in</button>
+      <p class="msg bad" id="loginMsg" role="status" aria-live="polite"></p>
+    </form>
+  </section>
+
+  <div id="boardView" class="layout hidden">
+    <div>
+      <h1>How the homelab is doing</h1>
+      <div class="summary" id="summary" role="status" aria-live="polite"></div>
+      <div id="groups"></div>
+    </div>
+    <section class="chat" aria-label="Help desk chat">
+      <h2>Ask T.I.T.A.N</h2>
+      <p class="hint">Say what's wrong ("the game server won't start"). I can check things and offer safe fixes; you press Yes.</p>
+      <div class="log" id="log" role="log" aria-live="polite"></div>
+      <form class="chatform" id="chatForm">
+        <label for="chatText" class="hidden">Message</label>
+        <textarea id="chatText" placeholder="What's up?" maxlength="2000" aria-label="Message"></textarea>
+        <button type="submit" id="chatSend">Send</button>
+      </form>
+    </section>
+  </div>
+
+  <div id="ownerView" class="hidden">
+    <section>
+      <h2>Inbox</h2>
+      <p class="hint">Refused asks, things passed to you, fixes that failed, and services that went down.</p>
+      <table><thead><tr><th>When</th><th>What</th><th>Who</th><th>Message</th><th></th></tr></thead><tbody id="inbox"></tbody></table>
+    </section>
+    <section>
+      <h2>People</h2>
+      <p class="hint">Friends see friend services and can fix their game servers. Family see family services too. Owners see everything.</p>
+      <form id="addUser" class="form-row">
+        <div><label for="nuName">Name</label><input id="nuName" required></div>
+        <div><label for="nuRole">Role</label><select id="nuRole"><option value="friend">friend</option><option value="family">family</option><option value="owner">owner</option></select></div>
+        <div><label for="nuPass">Password (8+)</label><input id="nuPass" type="text" minlength="8" required autocomplete="off"></div>
+        <button type="submit">Add</button>
+      </form>
+      <p class="msg" id="userMsg" role="status" aria-live="polite"></p>
+      <table><thead><tr><th>Name</th><th>Role</th><th>New password</th><th></th></tr></thead><tbody id="people"></tbody></table>
+    </section>
+    <section id="logsBox" class="hidden">
+      <h2 id="logsTitle">Recent problems</h2>
+      <pre class="logs" id="logs"></pre>
+    </section>
+  </div>
+
+  <section id="accountView" class="hidden" style="max-width:480px">
+    <h2>Your password</h2>
+    <form id="pwForm">
+      <div><label for="pwOld">Current password</label><input id="pwOld" type="password" autocomplete="current-password" required></div>
+      <div style="margin-top:10px"><label for="pwNew">New password (8 or more characters)</label><input id="pwNew" type="password" autocomplete="new-password" minlength="8" required></div>
+      <button type="submit" style="margin-top:10px">Change password</button>
+      <p class="msg" id="pwMsg" role="status" aria-live="polite"></p>
+    </form>
+  </section>
+</main>
+
+<script>
+const $ = id => document.getElementById(id);
+let me = null, timer = null;
+
+function el(tag, attrs, ...kids) {
+  const e = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs || {})) {
+    if (k === 'class') e.className = v; else if (k.startsWith('on')) e.addEventListener(k.slice(2), v); else if (v !== null && v !== undefined) e.setAttribute(k, v);
+  }
+  for (const k of kids) if (k !== null && k !== undefined) e.append(k);
+  return e;
+}
+
+async function api(path, opts = {}) {
+  const o = { method: opts.method || 'GET', headers: { 'X-Titan': '1' }, credentials: 'same-origin' };
+  if (opts.body !== undefined) { o.headers['Content-Type'] = 'application/json'; o.body = JSON.stringify(opts.body); }
+  let r;
+  try { r = await fetch(path, o); } catch { throw new Error("T.I.T.A.N isn't answering. Check that its container is running."); }
+  const j = await r.json().catch(() => ({}));
+  if (r.status === 401 && path !== '/api/login') { show('login'); throw new Error(j.error || 'Sign in first.'); }
+  if (!r.ok) throw new Error(j.error || ('Something went wrong (' + r.status + ').'));
+  return j;
+}
+
+function show(view) {
+  for (const v of ['login', 'board', 'owner', 'account']) $(v + 'View').classList.toggle('hidden', v !== view);
+  $('nav').classList.toggle('hidden', view === 'login');
+  document.querySelectorAll('nav [data-view]').forEach(b => { if (b.dataset.view === view) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current'); });
+  if (view === 'board') loadBoard();
+  if (view === 'owner') loadOwner();
+  clearInterval(timer);
+  if (view === 'board') timer = setInterval(loadBoard, 30000);
+}
+
+const ago = s => { const d = Math.max(0, Date.now() / 1000 - s); return d < 60 ? Math.round(d) + 's ago' : d < 3600 ? Math.round(d / 60) + ' min ago' : d < 172800 ? Math.round(d / 3600) + ' h ago' : Math.round(d / 86400) + ' days ago'; };
+const pct = v => v < 0 ? '–' : v + '%';
+const words = { up: 'Up', down: 'Down', pending: 'Waiting' };
+
+async function loadBoard() {
+  let data;
+  try { data = await api('/api/board'); } catch (e) { $('summary').replaceChildren(el('span', { class: 'msg bad' }, e.message)); return; }
+  const s = data.services, up = s.filter(x => x.status === 'up').length, down = s.filter(x => x.status === 'down').length;
+  $('summary').replaceChildren(
+    el('span', { class: 'pill up' }, up + ' up'),
+    el('span', { class: 'pill' + (down ? ' down' : '') }, down + ' down'),
+    el('span', { class: 'pill' }, s.length + ' services'));
+  const groups = {};
+  for (const c of s) (groups[c.group] ||= []).push(c);
+  const out = [];
+  for (const [g, cards] of Object.entries(groups)) {
+    out.push(el('h3', {}, g));
+    out.push(el('div', { class: 'cards' }, ...cards.map(card)));
+  }
+  if (!s.length) out.push(el('p', { class: 'hint' }, "Nothing to show yet. Ask Wizard which services you can see."));
+  $('groups').replaceChildren(...out);
+}
+
+function card(c) {
+  const beats = el('div', { class: 'beats', 'aria-label': 'Last ' + c.beats.length + ' checks' });
+  for (let i = c.beats.length; i < 40; i++) beats.append(el('i', { class: 'e' }));
+  for (const b of c.beats) beats.append(el('i', { class: b ? '' : 'd' }));
+  const box = el('div', { class: 'acts' });
+  for (const a of c.actions) box.append(el('button', { class: 'quiet small', onclick: () => act(c, a, box) }, a.label));
+  return el('article', { class: 'svc ' + c.status, 'aria-label': c.name + ': ' + words[c.status] },
+    el('div', { class: 'name' }, el('b', {}, c.name + (c.personal ? ' (yours)' : '')), el('span', { class: 'badge ' + c.status }, words[c.status])),
+    c.about ? el('div', { class: 'about' }, c.about) : null,
+    el('div', { class: 'detail' }, c.detail),
+    beats,
+    el('div', { class: 'ups' }, el('span', {}, '24h ', el('b', {}, pct(c.uptime['24h']))), el('span', {}, '7d ', el('b', {}, pct(c.uptime['7d']))), el('span', {}, '30d ', el('b', {}, pct(c.uptime['30d']))), c.ms ? el('span', {}, c.ms + ' ms') : null),
+    c.checked_at ? el('div', { class: 'when' }, 'Checked ' + ago(c.checked_at)) : null,
+    c.actions.length ? box : null);
+}
+
+async function act(c, a, box) {
+  if (a.action === 'recent_problems') return showLogs(c);
+  try {
+    const p = await api('/api/propose', { method: 'POST', body: { service: c.id, action: a.action } });
+    if (a.action === 'check_now') return decide(p, true, box);
+    confirmBox(p, box);
+  } catch (e) { box.append(el('p', { class: 'msg bad', role: 'status' }, e.message)); }
+}
+
+function confirmBox(p, where) {
+  const msg = el('p', { class: 'msg', role: 'status', 'aria-live': 'polite' });
+  const yes = el('button', { class: 'small', 'aria-label': 'Yes: ' + p.label, onclick: () => decide(p, true, msg, [yes, no]) }, 'Yes');
+  const no = el('button', { class: 'quiet small', 'aria-label': 'No: ' + p.label, onclick: () => decide(p, false, msg, [yes, no]) }, 'No');
+  const b = el('div', { class: 'confirm' }, el('span', {}, p.label + '?'), el('div', { class: 'row' }, yes, no), msg);
+  where.append(b);
+  yes.focus();
+}
+
+async function decide(p, yes, where, buttons = []) {
+  buttons.forEach(b => b.disabled = true);
+  const target = where.classList && where.classList.contains('msg') ? where : (() => { const m = el('p', { class: 'msg', role: 'status' }); where.append(m); return m; })();
+  target.textContent = yes ? 'Working on it…' : '';
+  try {
+    const r = await api('/api/proposals/' + encodeURIComponent(p.id), { method: 'POST', body: { yes } });
+    target.className = 'msg good'; target.textContent = r.result;
+  } catch (e) { target.className = 'msg bad'; target.textContent = e.message; }
+  setTimeout(loadBoard, 1500);
+}
+
+async function showLogs(c) {
+  show('owner');
+  $('logsBox').classList.remove('hidden');
+  $('logsTitle').textContent = 'Recent problems: ' + c.name;
+  $('logs').textContent = 'Loading…';
+  try { const r = await api('/api/owner/problems', { method: 'POST', body: { service: c.id } }); $('logs').textContent = (r.lines || []).join('\n') || 'No log lines.'; }
+  catch (e) { $('logs').textContent = e.message; }
+}
+
+function bubble(kind, text, who) {
+  const b = el('div', { class: 'bubble ' + kind }, who ? el('span', { class: 'who' }, who) : null, text);
+  $('log').append(b); $('log').scrollTop = $('log').scrollHeight;
+  return b;
+}
+
+$('chatForm').addEventListener('submit', async ev => {
+  ev.preventDefault();
+  const text = $('chatText').value.trim(); if (!text) return;
+  $('chatText').value = ''; $('chatSend').disabled = true;
+  bubble('me', text, 'You');
+  const wait = bubble('note', 'Thinking…');
+  try {
+    const t = await api('/api/chat', { method: 'POST', body: { message: text } });
+    wait.remove();
+    const b = bubble('bot', t.reply, 'T.I.T.A.N');
+    for (const p of t.proposals || []) confirmBox(p, b);
+  } catch (e) { wait.textContent = e.message; }
+  $('chatSend').disabled = false; $('chatText').focus();
+});
+$('chatText').addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); $('chatForm').requestSubmit(); } });
+
+async function loadOwner() {
+  try {
+    const notes = await api('/api/owner/inbox');
+    $('inbox').replaceChildren(...(notes.length ? notes.map(n => el('tr', {},
+      el('td', {}, ago(n.at)), el('td', {}, n.kind.replace('_', ' ')), el('td', {}, n.name), el('td', {}, n.text),
+      el('td', {}, el('button', { class: 'quiet small', onclick: async () => { await api('/api/owner/inbox/' + n.id + '/done', { method: 'POST' }); loadOwner(); } }, 'Done')))) :
+      [el('tr', {}, el('td', { colspan: 5, class: 'hint' }, 'Nothing waiting.'))]));
+    const people = await api('/api/owner/users');
+    $('people').replaceChildren(...people.map(u => {
+      const role = el('select', { 'aria-label': 'Role for ' + u.name }, ...['friend', 'family', 'owner'].map(r => { const o = el('option', { value: r }, r); if (r === u.role) o.selected = true; return o; }));
+      role.addEventListener('change', () => change(u.name, { role: role.value }));
+      const pw = el('input', { type: 'text', minlength: 8, 'aria-label': 'New password for ' + u.name, autocomplete: 'off' });
+      return el('tr', {}, el('td', {}, u.name), el('td', {}, role),
+        el('td', {}, el('div', { style: 'display:flex;gap:6px' }, pw, el('button', { class: 'quiet small', onclick: () => change(u.name, { password: pw.value }) }, 'Set'))),
+        el('td', {}, u.name === me.name ? '' : el('button', { class: 'quiet small', onclick: () => remove(u.name) }, 'Remove')));
+    }));
+  } catch (e) { $('userMsg').className = 'msg bad'; $('userMsg').textContent = e.message; }
+}
+async function change(name, body) {
+  try { await api('/api/owner/users/' + encodeURIComponent(name), { method: 'POST', body }); $('userMsg').className = 'msg good'; $('userMsg').textContent = 'Saved ' + name + '.'; }
+  catch (e) { $('userMsg').className = 'msg bad'; $('userMsg').textContent = e.message; }
+  loadOwner();
+}
+async function remove(name) {
+  try { await api('/api/owner/users/' + encodeURIComponent(name), { method: 'DELETE' }); $('userMsg').className = 'msg good'; $('userMsg').textContent = 'Removed ' + name + '.'; }
+  catch (e) { $('userMsg').className = 'msg bad'; $('userMsg').textContent = e.message; }
+  loadOwner();
+}
+$('addUser').addEventListener('submit', async ev => {
+  ev.preventDefault();
+  try { const r = await api('/api/owner/users', { method: 'POST', body: { name: $('nuName').value, role: $('nuRole').value, password: $('nuPass').value } }); $('userMsg').className = 'msg good'; $('userMsg').textContent = 'Added ' + r.name + '. Give them the password.'; $('addUser').reset(); }
+  catch (e) { $('userMsg').className = 'msg bad'; $('userMsg').textContent = e.message; }
+  loadOwner();
+});
+
+$('pwForm').addEventListener('submit', async ev => {
+  ev.preventDefault();
+  try { const r = await api('/api/password', { method: 'POST', body: { old: $('pwOld').value, new: $('pwNew').value } }); $('pwMsg').className = 'msg good'; $('pwMsg').textContent = r.result; setTimeout(() => show('login'), 1500); }
+  catch (e) { $('pwMsg').className = 'msg bad'; $('pwMsg').textContent = e.message; }
+});
+
+$('loginForm').addEventListener('submit', async ev => {
+  ev.preventDefault();
+  $('loginMsg').textContent = '';
+  try { await api('/api/login', { method: 'POST', body: { name: $('lname').value, password: $('lpass').value } }); $('lpass').value = ''; start(); }
+  catch (e) { $('loginMsg').textContent = e.message; }
+});
+$('signout').addEventListener('click', async () => { try { await api('/api/logout', { method: 'POST' }); } catch {} me = null; $('log').replaceChildren(); show('login'); });
+document.querySelectorAll('nav [data-view]').forEach(b => b.addEventListener('click', () => show(b.dataset.view)));
+
+async function start() {
+  try { me = await api('/api/me'); } catch { show('login'); return; }
+  $('whoami').textContent = me.name + ' · ' + me.role;
+  $('ownerTab').classList.toggle('hidden', me.role !== 'owner');
+  if (me.faith_url) { $('faith').href = me.faith_url; $('faith').classList.remove('hidden'); } else $('faith').classList.add('hidden');
+  if (!$('log').children.length) bubble('bot', 'Hi ' + me.name + '. Ask me how things are, or tell me what isn\'t working.', 'T.I.T.A.N');
+  show('board');
+}
+start();
+</script>
+</body>
+</html>
