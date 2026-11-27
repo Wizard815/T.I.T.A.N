@@ -42,21 +42,22 @@ var Changing = map[string]bool{ActStart: true, ActRestart: true, ActSync: true}
 var knownAction = map[string]bool{ActCheck: true, ActStart: true, ActRestart: true, ActSync: true, ActLogs: true}
 
 type Config struct {
-	Argos    Argos     `yaml:"argos"`
-	Models   Models    `yaml:"models"`
-	Hands    Hands     `yaml:"hands"`
-	Notify   Notify    `yaml:"notify"`
-	FaithURL string    `yaml:"faith_url"`
-	Kuma     Kuma      `yaml:"kuma"`
-	Every    Duration  `yaml:"check_every"`
-	KeepDays int       `yaml:"keep_days"`
-	Limits   Limits    `yaml:"limits"`
-	Services []Service `yaml:"services"`
-	Pipeline *Pipeline `yaml:"pipeline"`
-	Network  *Network  `yaml:"network"`
-	Style    string    `yaml:"style"` // caveman (default) or plain
-	Room     Room      `yaml:"room"`
-	Discover Discover  `yaml:"discover"`
+	Argos     Argos     `yaml:"argos"`
+	Models    Models    `yaml:"models"`
+	Hands     Hands     `yaml:"hands"`
+	Notify    Notify    `yaml:"notify"`
+	FaithURL  string    `yaml:"faith_url"`
+	Kuma      Kuma      `yaml:"kuma"`
+	Every     Duration  `yaml:"check_every"`
+	KeepDays  int       `yaml:"keep_days"`
+	Limits    Limits    `yaml:"limits"`
+	Services  []Service `yaml:"services"`
+	Pipeline  *Pipeline `yaml:"pipeline"`
+	Network   *Network  `yaml:"network"`
+	Style     string    `yaml:"style"` // caveman (default) or plain
+	Room      Room      `yaml:"room"`
+	Discover  Discover  `yaml:"discover"`
+	SkillsDir string    `yaml:"skills_dir"` // your own playbooks (.md); same name replaces a built-in one
 }
 
 // Discover makes cards from what titan-hands sees in Docker, so a new app

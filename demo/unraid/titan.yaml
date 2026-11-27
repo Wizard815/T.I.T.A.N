@@ -1,0 +1,38 @@
+# A copy of Wizard's Unraid (2026-11-27 container list) on fakes, with real
+# models through OpenRouter (demo/orproxy). Nothing real is touched.
+argos: {url: http://127.0.0.1:9920/v1, timeout: 60s}
+models: {guard: titan-guard, agent: titan-agent, fallback: titan-fallback}
+hands: {url: http://127.0.0.1:9911}
+faith_url: http://192.168.20.5:8097
+check_every: 30s
+style: caveman
+discover:
+  docker: true
+  host: 192.168.20.5
+  audience: owner
+pipeline:
+  audience: family
+  seerr:    {url: "http://127.0.0.1:9900/seerr"}
+  sonarr:   {url: "http://127.0.0.1:9900/sonarr"}
+  sabnzbd:  {url: "http://127.0.0.1:9900/sab"}
+  tautulli: {url: "http://127.0.0.1:9900/tautulli"}
+services:
+  - {id: enshrouded, name: Enshrouded, group: Games, about: "Runs in AMP.", audience: friends, amp: Enshrouded01, check: {amp: true}, actions: [start_service, restart_service]}
+  - {id: tunnel, name: Outside access, group: Homelab, audience: owner, container: Unraid-Cloudflared-Tunnel, check: {container: true}, actions: [restart_service]}
+  - id: plex
+    name: Plex
+    group: Media
+    audience: friends
+    container: binhex-plexpass
+    depends_on: [tunnel]
+    link: http://192.168.20.5:32400/web
+    check: {http: "http://127.0.0.1:9900/plex/identity"}
+    actions: [restart_service]
+    fix_by: family
+    info:
+      - tautulli: {url: "http://127.0.0.1:9900/tautulli"}
+      - seerr: {url: "http://127.0.0.1:9900/seerr", label: Requests}
+  - {id: faith, name: FAITH, group: Family, about: The family assistant., audience: family, container: faith, link: "http://192.168.20.5:8097", check: {http: "http://127.0.0.1:9900/faith/health"}, actions: [restart_service, recent_problems]}
+  - {id: argos, name: The AI (Argos), group: Homelab, audience: family, fix_by: owner, container: argos, check: {http: "http://127.0.0.1:9900/argos/running"}, info: [{argos: {url: "http://127.0.0.1:9900/argos"}}]}
+  - {id: dnd-sync, name: DnD sync, group: Family, about: LegendKeeper notes into the wiki., audience: family, sync: dnd, check: {freshness: {url: "http://127.0.0.1:9900/dnd/status", field: last_sync, max_age: 6h}}, actions: [run_sync]}
+  - {id: media, name: Media pipeline, group: Media, audience: family, check: {pipeline: true}}

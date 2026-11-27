@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"regexp"
+	"sort"
 	"strings"
 	"sync"
 )
@@ -59,6 +60,9 @@ type Tools interface {
 	Propose(ctx context.Context, u User, service, action string) (Proposal, error)
 	TellOwner(ctx context.Context, u User, text string) error
 	Pipeline(ctx context.Context, u User, title string) (string, error)
+	// Skills lists the playbooks this person's helper may read: name -> when to read it.
+	Skills(u User) map[string]string
+	Skill(u User, name string) (string, error)
 }
 
 type Agent struct {
@@ -103,6 +107,52 @@ const roomNote = `
 
 This message came from the shared room chat: everyone signed in reads your answer, so you see only what friends see. If they need something that isn't here (a family service, their own server), tell them to ask in their own chat at the top of the page.`
 
+// keep remembers a finished turn for the next message and for Explain.
+func (a *Agent) keep(u User, text, reply string, msgs []Message) {
+	a.remember(u.key(), Message{Role: "user", Content: text}, Message{Role: "assistant", Content: reply})
+	a.mu.Lock()
+	if a.last == nil {
+		a.last = map[string][]Message{}
+	}
+	a.last[u.key()] = msgs
+	a.mu.Unlock()
+}
+
+// offerLine is the reply when the model offered a fix but said nothing usable.
+func offerLine(ps []Proposal, plain bool) string {
+	if plain {
+		return "I can fix that: " + ps[0].Label + ". Press Yes below."
+	}
+	return "🔧 " + ps[0].Label + "? Press Yes."
+}
+
+func others(skip string, all ...string) []string {
+	var out []string
+	for _, m := range all {
+		if m != "" && m != skip {
+			out = append(out, m)
+		}
+	}
+	return out
+}
+
+func (a *Agent) skillList(u User) string {
+	m := a.Tools.Skills(u)
+	if len(m) == 0 {
+		return "  (none)"
+	}
+	names := make([]string, 0, len(m))
+	for n := range m {
+		names = append(names, n)
+	}
+	sort.Strings(names)
+	var b strings.Builder
+	for _, n := range names {
+		fmt.Fprintf(&b, "  - %s: %s\n", n, m[n])
+	}
+	return strings.TrimRight(b.String(), "\n")
+}
+
 // Check runs the screen and then the guard models. It fails closed: when no
 // guard answers, the verdict is ask_owner.
 func (a *Agent) Check(ctx context.Context, u User, text string) Verdict {
@@ -144,11 +194,13 @@ func parseVerdict(s string) Verdict {
 const helperPrompt = `You are T.I.T.A.N (Timely Intelligence for Tasks, Answers, and Navigation), the help desk for %[1]s's homelab. You are talking to %[2]s, who is a %[3]s.
 
 - Start by calling status to see the services this person can see. Only talk about those.
-- When something is down or stale, say so plainly and suggest the fix with propose_fix. You can only propose actions that status lists for that service. The person gets a Yes button; never say it is done before they press it.
+- When something is down or stale and status lists a fix for it, call propose_fix in the same turn. The Yes button only appears when you call propose_fix: never write "press Yes" (or offer a fix in words) without calling it. You can only propose actions that status lists for that service, and only for the service the person is asking about. If what they asked about isn't in status, say you can't see it; never offer a fix for a different service instead. Never say a fix is done before they press Yes.
 - recent_problems shows the last log lines of a service with secrets removed. Summarise them in plain words; don't paste them unless the person is the owner.
 - If a service is down only because another one is (down_because_this_is_down), say that plainly and don't restart it: the fix is the other one, which may be %[1]s's job.
-- If the fix isn't on the list, say so and offer tell_owner, which passes a message to %[1]s.
+- If the fix isn't on the list, say so and offer tell_owner, which passes a message to %[1]s. If the person is the owner, don't offer tell_owner: say what you found and what they could check.
 - For "is my show/film coming", "why isn't X on Plex" or "are downloads moving", call media_pipeline (with the title if one is named).
+- Playbooks: before answering a problem that matches one below, call read_skill with its name and follow it. They only tell you how to look; the fixes are still only what status lists.
+%[5]s
 - %[4]s`
 
 const cavemanStyle = `Talk like a caveman: very short, no filler words, simple words, max about 15 words. Start with one emoji that fits (👀 looking, ✅ fine, 🔴 down, 🔧 fix, 📦 downloading, 🤷 don't know). Example: "🔴 Minecraft sleep. Me start it? Press Yes." The person can press Explain for the long version, so don't explain unless asked. If the message needs no words (thanks, ok, nice), answer with one emoji only.`
@@ -162,10 +214,16 @@ var tools = []Tool{
 	{Type: "function", Function: ToolDef{Name: "recent_problems", Description: "The last log lines of a service (secrets removed). Only for services whose actions include recent_problems.", Parameters: map[string]any{"type": "object", "properties": map[string]any{"service": map[string]any{"type": "string", "description": "service id from status"}}, "required": []string{"service"}}}},
 	{Type: "function", Function: ToolDef{Name: "propose_fix", Description: "Offer the person a fix; they press Yes to run it.", Parameters: map[string]any{"type": "object", "properties": map[string]any{"service": map[string]any{"type": "string"}, "action": map[string]any{"type": "string", "enum": []string{"check_now", "start_service", "restart_service", "run_sync"}}}, "required": []string{"service", "action"}}}},
 	{Type: "function", Function: ToolDef{Name: "media_pipeline", Description: "Where shows and films are: requests (Seerr), downloads (Sonarr, Radarr, SABnzbd) and arrivals on Plex. Says whether it's moving, idle or stuck.", Parameters: map[string]any{"type": "object", "properties": map[string]any{"title": map[string]any{"type": "string", "description": "a show or film to look for (optional)"}}}}},
+	{Type: "function", Function: ToolDef{Name: "read_skill", Description: "Read a playbook listed in your instructions: how to look into that kind of problem and which fix fits.", Parameters: map[string]any{"type": "object", "properties": map[string]any{"name": map[string]any{"type": "string"}}, "required": []string{"name"}}}},
 	{Type: "function", Function: ToolDef{Name: "tell_owner", Description: "Pass a short message to the owner when the fix isn't on the list.", Parameters: map[string]any{"type": "object", "properties": map[string]any{"message": map[string]any{"type": "string"}}, "required": []string{"message"}}}},
 }
 
-const maxRounds = 5
+const maxRounds = 7
+
+// saysYes spots a reply that promises a Yes button.
+var saysYes = regexp.MustCompile(`(?i)\bpress(ing)? (the )?yes\b|\btap yes\b`)
+
+const nudgePrompt = `(From T.I.T.A.N, not the person.) You told them to press Yes, but there is no Yes button: it only appears when you call propose_fix. Call propose_fix now for the fix you meant (only if status lists it for that service), or answer again without mentioning Yes.`
 
 // Ask answers one message: guard first, then the helper.
 func (a *Agent) Ask(ctx context.Context, u User, text string) Turn {
@@ -184,7 +242,7 @@ func (a *Agent) Ask(ctx context.Context, u User, text string) Turn {
 	if a.Plain {
 		style = plainStyle
 	}
-	sys := fmt.Sprintf(helperPrompt, a.Owner, u.Name, u.Role, style)
+	sys := fmt.Sprintf(helperPrompt, a.Owner, u.Name, u.Role, style, a.skillList(u))
 	if u.Room {
 		sys += roomNote
 	}
@@ -192,11 +250,28 @@ func (a *Agent) Ask(ctx context.Context, u User, text string) Turn {
 	msgs = append(msgs, a.past(u.key())...)
 	msgs = append(msgs, Message{Role: "user", Content: text})
 	models := []string{a.Helper, a.Fallback}
+	nudged := false
 	for round := 0; round < maxRounds; round++ {
 		msg, model, err := a.Models.First(ctx, models, msgs, tools, false)
-		if err != nil {
-			t.Reply = "I can't think right now: the helper model isn't answering. You can still see the board and use its buttons."
+		if err != nil && len(t.Proposals) > 0 {
+			// The fix is already offered; the Yes button says the rest.
 			t.Calls = append(t.Calls, "error: "+err.Error())
+			t.Reply = offerLine(t.Proposals, a.Plain)
+			a.keep(u, text, t.Reply, msgs)
+			return t
+		}
+		if err != nil && len(models) == 1 {
+			// The model that started this turn failed part way: let the
+			// others pick it up rather than lose what was found.
+			t.Calls = append(t.Calls, "error: "+err.Error())
+			msg, model, err = a.Models.First(ctx, others(models[0], a.Helper, a.Fallback), msgs, tools, false)
+		}
+		if err != nil {
+			t.Calls = append(t.Calls, "error: "+err.Error())
+			t.Reply = "I can't think right now: the helper model isn't answering. You can still see the board and use its buttons."
+			if len(t.Proposals) > 0 {
+				t.Reply = "🔧 I found a fix. Press Yes below."
+			}
 			return t
 		}
 		t.Model = model
@@ -204,18 +279,21 @@ func (a *Agent) Ask(ctx context.Context, u User, text string) Turn {
 		models = []string{model}
 		msg.Content = strings.TrimSpace(msg.Content)
 		msgs = append(msgs, msg)
+		if len(msg.ToolCalls) == 0 && len(t.Proposals) == 0 && !nudged && saysYes.MatchString(msg.Content) {
+			// Small models often write "press Yes" without making the button.
+			nudged = true
+			msgs = append(msgs, Message{Role: "user", Content: nudgePrompt})
+			continue
+		}
 		if len(msg.ToolCalls) == 0 {
 			t.Reply = msg.Content
+			if len(t.Proposals) > 0 && len([]rune(t.Reply)) < 4 {
+				t.Reply = offerLine(t.Proposals, a.Plain)
+			}
 			if t.Reply == "" {
 				t.Reply = "Sorry, I didn't get an answer together. Try asking again."
 			}
-			a.remember(u.key(), Message{Role: "user", Content: text}, Message{Role: "assistant", Content: t.Reply})
-			a.mu.Lock()
-			if a.last == nil {
-				a.last = map[string][]Message{}
-			}
-			a.last[u.key()] = msgs
-			a.mu.Unlock()
+			a.keep(u, text, t.Reply, msgs)
 			return t
 		}
 		for _, c := range msg.ToolCalls {
@@ -228,7 +306,7 @@ func (a *Agent) Ask(ctx context.Context, u User, text string) Turn {
 }
 
 func (a *Agent) call(ctx context.Context, u User, c ToolCall, t *Turn) string {
-	var args struct{ Service, Action, Message, Title string }
+	var args struct{ Service, Action, Message, Title, Name string }
 	json.Unmarshal([]byte(c.Function.Arguments), &args)
 	t.Calls = append(t.Calls, c.Function.Name+" "+c.Function.Arguments)
 	switch c.Function.Name {
@@ -247,6 +325,9 @@ func (a *Agent) call(ctx context.Context, u User, c ToolCall, t *Turn) string {
 		return "Offered to the person: " + p.Label + ". They need to press Yes."
 	case "media_pipeline":
 		s, err := a.Tools.Pipeline(ctx, u, args.Title)
+		return orErr(s, err)
+	case "read_skill":
+		s, err := a.Tools.Skill(u, args.Name)
 		return orErr(s, err)
 	case "tell_owner":
 		if err := a.Tools.TellOwner(ctx, u, args.Message); err != nil {

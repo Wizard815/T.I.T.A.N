@@ -9,9 +9,10 @@ T.I.T.A.N is a status board and help desk for Wizard's friends and family. Go 1.
 | `internal/agent` | guard model, helper model with fallback, the code screen |
 | `internal/checks` | http, container, Uptime Kuma and freshness checks; uptime |
 | `internal/web` | routes, roles, fixes, owner pages |
+| `internal/skills` | playbooks (Markdown) the helper reads with read_skill, filtered by role |
 | `internal/censor` | the room's word filter (masking, not blocking) |
 | `internal/fakes` | stand-ins (AMP) shared by tests and the demo |
-| `demo/` | `demo/run.sh` runs everything against `demo/fakeworld` |
+| `demo/` | `demo/run.sh` runs everything against `demo/fakeworld`; `demo/unraid/run.sh` is a copy of Wizard's Unraid with real models via `demo/orproxy` (OpenRouter, spend cap) |
 
 ## Rules
 

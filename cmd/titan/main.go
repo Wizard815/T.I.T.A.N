@@ -29,6 +29,7 @@ import (
 	"github.com/wizard815/titan/internal/config"
 	"github.com/wizard815/titan/internal/db"
 	"github.com/wizard815/titan/internal/hands"
+	"github.com/wizard815/titan/internal/skills"
 	"github.com/wizard815/titan/internal/web"
 )
 
@@ -169,11 +170,15 @@ func serve(cfgPath, dataPath string, d *db.DB, a *auth.Auth) error {
 	if cfg.Argos.APIKeyEnv != "" {
 		models.APIKey = os.Getenv(cfg.Argos.APIKeyEnv)
 	}
+	book, err := skills.Load(cfg.SkillsDir)
+	if err != nil {
+		return err
+	}
 	runner := &checks.Runner{Cfg: cfg, DB: d, Hands: hd, HTTP: hc}
 	app := &web.App{
 		Cfg: cfg, DB: d, Auth: a, Runner: runner, Hands: hd, HTTP: hc,
 		ExportToken: os.Getenv("TITAN_EXPORT_TOKEN"), Salt: s,
-		OwnerName: env("TITAN_OWNER_LABEL", "Wizard"), Secure: os.Getenv("TITAN_SECURE_COOKIE") == "1",
+		Playbooks: book, OwnerName: env("TITAN_OWNER_LABEL", "Wizard"), Secure: os.Getenv("TITAN_SECURE_COOKIE") == "1",
 	}
 	app.Agent = &agent.Agent{Models: models, Guard: cfg.Models.Guard, Helper: cfg.Models.Agent, Fallback: cfg.Models.Fallback, Tools: app, Owner: app.OwnerName, Plain: cfg.Style == "plain"}
 	runner.OnChange = app.OnChange

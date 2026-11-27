@@ -1,0 +1,1234 @@
+[
+{
+"Names": [
+"/argos"
+],
+"Image": "argos",
+"State": "running",
+"Status": "Up 3 days",
+"Labels": {
+"net.unraid.docker.webui": "http://[IP]:[PORT:8081]/"
+}
+},
+{
+"Names": [
+"/argos-postgres"
+],
+"Image": "argos-postgres",
+"State": "running",
+"Status": "Up 3 days",
+"Labels": {}
+},
+{
+"Names": [
+"/mx-llamacpp-ssh"
+],
+"Image": "mx-llamacpp-ssh",
+"State": "running",
+"Status": "Up 3 days",
+"Labels": {
+"net.unraid.docker.webui": "http://[IP]:[PORT:8000]/"
+}
+},
+{
+"Names": [
+"/mx-llamacpp-cuda"
+],
+"Image": "mx-llamacpp-cuda",
+"State": "running",
+"Status": "Up 3 days",
+"Labels": {}
+},
+{
+"Names": [
+"/mx-llamacpp-bonsai"
+],
+"Image": "mx-llamacpp-bonsai",
+"State": "running",
+"Status": "Up 3 days",
+"Labels": {}
+},
+{
+"Names": [
+"/quartz"
+],
+"Image": "quartz",
+"State": "running",
+"Status": "Up 3 days",
+"Labels": {}
+},
+{
+"Names": [
+"/llaminar"
+],
+"Image": "llaminar",
+"State": "running",
+"Status": "Up 3 days",
+"Labels": {}
+},
+{
+"Names": [
+"/maya"
+],
+"Image": "maya",
+"State": "running",
+"Status": "Up 3 days",
+"Labels": {}
+},
+{
+"Names": [
+"/whisper-ssh"
+],
+"Image": "whisper-ssh",
+"State": "running",
+"Status": "Up 3 days",
+"Labels": {
+"net.unraid.docker.webui": "http://[IP]:[PORT:8003]/"
+}
+},
+{
+"Names": [
+"/sdcpp-ssh"
+],
+"Image": "sdcpp-ssh",
+"State": "running",
+"Status": "Up 3 days",
+"Labels": {}
+},
+{
+"Names": [
+"/kokoro-tts"
+],
+"Image": "kokoro-tts",
+"State": "running",
+"Status": "Up 3 days",
+"Labels": {}
+},
+{
+"Names": [
+"/odysseus-odysseus-1"
+],
+"Image": "odysseus-odysseus-1",
+"State": "running",
+"Status": "Up 3 days",
+"Labels": {
+"net.unraid.docker.webui": "http://[IP]:[PORT:7005]/"
+}
+},
+{
+"Names": [
+"/odysseus-chromadb-1"
+],
+"Image": "odysseus-chromadb-1",
+"State": "running",
+"Status": "Up 3 days",
+"Labels": {}
+},
+{
+"Names": [
+"/odysseus-searxng-1"
+],
+"Image": "odysseus-searxng-1",
+"State": "running",
+"Status": "Up 3 days",
+"Labels": {
+"net.unraid.docker.webui": "http://[IP]:[PORT:8080]/"
+}
+},
+{
+"Names": [
+"/odysseus-ntfy-1"
+],
+"Image": "odysseus-ntfy-1",
+"State": "running",
+"Status": "Up 3 days",
+"Labels": {
+"net.unraid.docker.webui": "http://[IP]:[PORT:8091]/"
+}
+},
+{
+"Names": [
+"/LLMWIKI"
+],
+"Image": "llmwiki",
+"State": "running",
+"Status": "Up 3 days",
+"Labels": {
+"net.unraid.docker.webui": "http://[IP]:[PORT:3010]/"
+}
+},
+{
+"Names": [
+"/obsidian"
+],
+"Image": "obsidian",
+"State": "running",
+"Status": "Up 3 days",
+"Labels": {
+"net.unraid.docker.webui": "http://[IP]:[PORT:3001]/"
+}
+},
+{
+"Names": [
+"/faith"
+],
+"Image": "faith",
+"State": "running",
+"Status": "Up 3 days (healthy)",
+"Labels": {
+"net.unraid.docker.webui": "http://[IP]:[PORT:8097]/"
+}
+},
+{
+"Names": [
+"/faith-wake"
+],
+"Image": "faith-wake",
+"State": "running",
+"Status": "Up 3 days",
+"Labels": {}
+},
+{
+"Names": [
+"/hermes-studio"
+],
+"Image": "hermes-studio",
+"State": "running",
+"Status": "Up 3 days",
+"Labels": {
+"net.unraid.docker.webui": "http://[IP]:[PORT:6060]/"
+}
+},
+{
+"Names": [
+"/overseer"
+],
+"Image": "overseer",
+"State": "running",
+"Status": "Up 3 days (healthy)",
+"Labels": {
+"net.unraid.docker.webui": "http://[IP]:[PORT:8099]/"
+}
+},
+{
+"Names": [
+"/overseer-db"
+],
+"Image": "overseer-db",
+"State": "running",
+"Status": "Up 3 days",
+"Labels": {}
+},
+{
+"Names": [
+"/overseer-docker-proxy"
+],
+"Image": "overseer-docker-proxy",
+"State": "running",
+"Status": "Up 3 days",
+"Labels": {}
+},
+{
+"Names": [
+"/legendkeepermcp"
+],
+"Image": "legendkeepermcp",
+"State": "running",
+"Status": "Up 3 days",
+"Labels": {
+"net.unraid.docker.webui": "http://[IP]:[PORT:9989]/"
+}
+},
+{
+"Names": [
+"/mcp-kanka"
+],
+"Image": "mcp-kanka",
+"State": "running",
+"Status": "Up 3 days",
+"Labels": {
+"net.unraid.docker.webui": "http://[IP]:[PORT:8765]/"
+}
+},
+{
+"Names": [
+"/milaclone-mcp"
+],
+"Image": "milaclone-mcp",
+"State": "running",
+"Status": "Up 3 days",
+"Labels": {
+"net.unraid.docker.webui": "http://[IP]:[PORT:8383]/"
+}
+},
+{
+"Names": [
+"/milaclone-app"
+],
+"Image": "milaclone-app",
+"State": "running",
+"Status": "Up 3 days",
+"Labels": {
+"net.unraid.docker.webui": "http://[IP]:[PORT:4321]/"
+}
+},
+{
+"Names": [
+"/n8n"
+],
+"Image": "n8n",
+"State": "running",
+"Status": "Up 3 days",
+"Labels": {
+"net.unraid.docker.webui": "http://[IP]:[PORT:5678]/"
+}
+},
+{
+"Names": [
+"/postgreslitellm"
+],
+"Image": "postgreslitellm",
+"State": "running",
+"Status": "Up 3 days",
+"Labels": {}
+},
+{
+"Names": [
+"/allglance"
+],
+"Image": "allglance",
+"State": "running",
+"Status": "Up 3 days",
+"Labels": {
+"titan.name": "ALLGlance (calendar)",
+"titan.group": "Family",
+"titan.audience": "family",
+"net.unraid.docker.webui": "http://[IP]:[PORT:8090]/"
+}
+},
+{
+"Names": [
+"/allglance-lastglance"
+],
+"Image": "allglance-lastglance",
+"State": "running",
+"Status": "Up 3 days",
+"Labels": {
+"net.unraid.docker.webui": "http://[IP]:[PORT:3000]/"
+}
+},
+{
+"Names": [
+"/allglance-lifeglance"
+],
+"Image": "allglance-lifeglance",
+"State": "running",
+"Status": "Up 3 days",
+"Labels": {
+"net.unraid.docker.webui": "http://[IP]:[PORT:6868]/"
+}
+},
+{
+"Names": [
+"/allglance-dayglance"
+],
+"Image": "allglance-dayglance",
+"State": "running",
+"Status": "Up 3 days",
+"Labels": {
+"net.unraid.docker.webui": "http://[IP]:[PORT:6767]/"
+}
+},
+{
+"Names": [
+"/allglance-vikunja"
+],
+"Image": "allglance-vikunja",
+"State": "running",
+"Status": "Up 3 days",
+"Labels": {
+"net.unraid.docker.webui": "http://[IP]:[PORT:3457]/"
+}
+},
+{
+"Names": [
+"/alexandria"
+],
+"Image": "alexandria",
+"State": "running",
+"Status": "Up 3 days",
+"Labels": {
+"net.unraid.docker.webui": "http://[IP]:[PORT:8094]/"
+}
+},
+{
+"Names": [
+"/pondering-orb"
+],
+"Image": "pondering-orb",
+"State": "running",
+"Status": "Up 3 days",
+"Labels": {
+"titan.group": "Wizard",
+"net.unraid.docker.webui": "http://[IP]:[PORT:8095]/"
+}
+},
+{
+"Names": [
+"/coinpile"
+],
+"Image": "coinpile",
+"State": "running",
+"Status": "Up 3 days",
+"Labels": {
+"net.unraid.docker.webui": "http://[IP]:[PORT:8190]/"
+}
+},
+{
+"Names": [
+"/firefly-iii"
+],
+"Image": "firefly-iii",
+"State": "running",
+"Status": "Up 3 days",
+"Labels": {
+"net.unraid.docker.webui": "http://[IP]:[PORT:8182]/"
+}
+},
+{
+"Names": [
+"/postgresql17-firefly"
+],
+"Image": "postgresql17-firefly",
+"State": "running",
+"Status": "Up 3 days",
+"Labels": {}
+},
+{
+"Names": [
+"/plaid-proxy-gateway-1"
+],
+"Image": "plaid-proxy-gateway-1",
+"State": "running",
+"Status": "Up 3 days",
+"Labels": {}
+},
+{
+"Names": [
+"/plaid-proxy-worker-wizard-1"
+],
+"Image": "plaid-proxy-worker-wizard-1",
+"State": "running",
+"Status": "Up 3 days",
+"Labels": {}
+},
+{
+"Names": [
+"/Wallos"
+],
+"Image": "wallos",
+"State": "running",
+"Status": "Up 3 days",
+"Labels": {
+"net.unraid.docker.webui": "http://[IP]:[PORT:8109]/"
+}
+},
+{
+"Names": [
+"/omi-local"
+],
+"Image": "omi-local",
+"State": "running",
+"Status": "Up 3 days",
+"Labels": {
+"net.unraid.docker.webui": "http://[IP]:[PORT:6542]/"
+}
+},
+{
+"Names": [
+"/omi-audio"
+],
+"Image": "omi-audio",
+"State": "running",
+"Status": "Up 3 days",
+"Labels": {}
+},
+{
+"Names": [
+"/omi-proxy"
+],
+"Image": "omi-proxy",
+"State": "running",
+"Status": "Up 3 days",
+"Labels": {}
+},
+{
+"Names": [
+"/omi-radicale"
+],
+"Image": "omi-radicale",
+"State": "running",
+"Status": "Up 3 days",
+"Labels": {
+"net.unraid.docker.webui": "http://[IP]:[PORT:5232]/"
+}
+},
+{
+"Names": [
+"/mealiev1"
+],
+"Image": "mealiev1",
+"State": "running",
+"Status": "Up 3 days",
+"Labels": {
+"titan.name": "Mealie (recipes)",
+"titan.group": "Family",
+"titan.audience": "family",
+"net.unraid.docker.webui": "http://[IP]:[PORT:8110]/"
+}
+},
+{
+"Names": [
+"/Homebox"
+],
+"Image": "homebox",
+"State": "running",
+"Status": "Up 3 days",
+"Labels": {
+"titan.name": "Homebox (stuff we own)",
+"titan.group": "Family",
+"titan.audience": "family",
+"net.unraid.docker.webui": "http://[IP]:[PORT:8111]/"
+}
+},
+{
+"Names": [
+"/immich"
+],
+"Image": "immich",
+"State": "running",
+"Status": "Up 3 days (healthy)",
+"Labels": {
+"titan.name": "Immich (photos)",
+"titan.group": "Family",
+"titan.audience": "family",
+"net.unraid.docker.webui": "http://[IP]:[PORT:8407]/"
+}
+},
+{
+"Names": [
+"/immich-postgresql"
+],
+"Image": "immich-postgresql",
+"State": "running",
+"Status": "Up 3 days",
+"Labels": {}
+},
+{
+"Names": [
+"/redis-immich"
+],
+"Image": "redis-immich",
+"State": "running",
+"Status": "Up 3 days",
+"Labels": {}
+},
+{
+"Names": [
+"/vaultwarden"
+],
+"Image": "vaultwarden",
+"State": "running",
+"Status": "Up 3 days",
+"Labels": {
+"net.unraid.docker.webui": "http://[IP]:[PORT:8120]/"
+}
+},
+{
+"Names": [
+"/copyparty"
+],
+"Image": "copyparty",
+"State": "running",
+"Status": "Up 3 days",
+"Labels": {
+"net.unraid.docker.webui": "http://[IP]:[PORT:3923]/"
+}
+},
+{
+"Names": [
+"/binhex-plexpass"
+],
+"Image": "binhex-plexpass",
+"State": "running",
+"Status": "Up 3 days",
+"Labels": {
+"titan.name": "Plex",
+"titan.group": "Media",
+"titan.audience": "friends",
+"net.unraid.docker.webui": "http://[IP]:[PORT:32400]/"
+}
+},
+{
+"Names": [
+"/tautulli"
+],
+"Image": "tautulli",
+"State": "running",
+"Status": "Up 3 days",
+"Labels": {
+"net.unraid.docker.webui": "http://[IP]:[PORT:8210]/"
+}
+},
+{
+"Names": [
+"/Plex-Auto-Languages"
+],
+"Image": "plex-auto-languages",
+"State": "running",
+"Status": "Up 3 days",
+"Labels": {}
+},
+{
+"Names": [
+"/Seerr"
+],
+"Image": "seerr",
+"State": "running",
+"Status": "Up 3 days",
+"Labels": {
+"titan.name": "Requests (Seerr)",
+"titan.group": "Media",
+"titan.audience": "family",
+"net.unraid.docker.webui": "http://[IP]:[PORT:5055]/"
+}
+},
+{
+"Names": [
+"/binhex-sonarr"
+],
+"Image": "binhex-sonarr",
+"State": "running",
+"Status": "Up 3 days (healthy)",
+"Labels": {
+"net.unraid.docker.webui": "http://[IP]:[PORT:8200]/"
+}
+},
+{
+"Names": [
+"/binhex-radarr"
+],
+"Image": "binhex-radarr",
+"State": "running",
+"Status": "Up 3 days (healthy)",
+"Labels": {
+"net.unraid.docker.webui": "http://[IP]:[PORT:8201]/"
+}
+},
+{
+"Names": [
+"/binhex-readarr"
+],
+"Image": "binhex-readarr",
+"State": "running",
+"Status": "Up 2 hours (unhealthy)",
+"Labels": {
+"net.unraid.docker.webui": "http://[IP]:[PORT:8202]/"
+}
+},
+{
+"Names": [
+"/binhex-prowlarr"
+],
+"Image": "binhex-prowlarr",
+"State": "running",
+"Status": "Up 3 days",
+"Labels": {
+"net.unraid.docker.webui": "http://[IP]:[PORT:8203]/"
+}
+},
+{
+"Names": [
+"/sabnzbdvpn"
+],
+"Image": "sabnzbdvpn",
+"State": "running",
+"Status": "Up 3 days",
+"Labels": {
+"net.unraid.docker.webui": "http://[IP]:[PORT:8300]/"
+}
+},
+{
+"Names": [
+"/binhex-delugevpn"
+],
+"Image": "binhex-delugevpn",
+"State": "running",
+"Status": "Up 3 days",
+"Labels": {
+"net.unraid.docker.webui": "http://[IP]:[PORT:8301]/"
+}
+},
+{
+"Names": [
+"/jackettvpn"
+],
+"Image": "jackettvpn",
+"State": "running",
+"Status": "Up 3 days",
+"Labels": {
+"net.unraid.docker.webui": "http://[IP]:[PORT:8302]/"
+}
+},
+{
+"Names": [
+"/GluetunVPN"
+],
+"Image": "gluetunvpn",
+"State": "running",
+"Status": "Up 3 days",
+"Labels": {}
+},
+{
+"Names": [
+"/unmanic"
+],
+"Image": "unmanic",
+"State": "running",
+"Status": "Up 3 days",
+"Labels": {
+"net.unraid.docker.webui": "http://[IP]:[PORT:8888]/"
+}
+},
+{
+"Names": [
+"/dv-probe-helper"
+],
+"Image": "dv-probe-helper",
+"State": "running",
+"Status": "Up 3 days",
+"Labels": {}
+},
+{
+"Names": [
+"/Forgejo"
+],
+"Image": "forgejo",
+"State": "running",
+"Status": "Up 3 days",
+"Labels": {
+"net.unraid.docker.webui": "http://[IP]:[PORT:3030]/"
+}
+},
+{
+"Names": [
+"/forgebot-1"
+],
+"Image": "forgebot-1",
+"State": "running",
+"Status": "Up 3 days",
+"Labels": {}
+},
+{
+"Names": [
+"/forgebot-2"
+],
+"Image": "forgebot-2",
+"State": "running",
+"Status": "Up 3 days",
+"Labels": {}
+},
+{
+"Names": [
+"/binhex-code-server"
+],
+"Image": "binhex-code-server",
+"State": "running",
+"Status": "Up 3 days",
+"Labels": {
+"net.unraid.docker.webui": "http://[IP]:[PORT:8108]/"
+}
+},
+{
+"Names": [
+"/Nginx-Proxy-Manager-Official"
+],
+"Image": "nginx-proxy-manager-official",
+"State": "running",
+"Status": "Up 3 days",
+"Labels": {
+"net.unraid.docker.webui": "http://[IP]:[PORT:81]/"
+}
+},
+{
+"Names": [
+"/Unraid-Cloudflared-Tunnel"
+],
+"Image": "unraid-cloudflared-tunnel",
+"State": "running",
+"Status": "Up 3 days",
+"Labels": {}
+},
+{
+"Names": [
+"/dns-server"
+],
+"Image": "dns-server",
+"State": "running",
+"Status": "Up 3 days",
+"Labels": {
+"net.unraid.docker.webui": "http://[IP]:[PORT:5380]/"
+}
+},
+{
+"Names": [
+"/fan-bridge"
+],
+"Image": "fan-bridge",
+"State": "running",
+"Status": "Up 3 days",
+"Labels": {
+"net.unraid.docker.webui": "http://[IP]:[PORT:5000]/"
+}
+},
+{
+"Names": [
+"/fan-bridge-docker-proxy"
+],
+"Image": "fan-bridge-docker-proxy",
+"State": "running",
+"Status": "Up 3 days",
+"Labels": {}
+},
+{
+"Names": [
+"/orb-docker-proxy"
+],
+"Image": "orb-docker-proxy",
+"State": "running",
+"Status": "Up 3 days",
+"Labels": {}
+},
+{
+"Names": [
+"/Portainer-Agent"
+],
+"Image": "portainer-agent",
+"State": "running",
+"Status": "Up 3 days",
+"Labels": {}
+},
+{
+"Names": [
+"/uptime-kuma"
+],
+"Image": "uptime-kuma",
+"State": "running",
+"Status": "Up 3 days",
+"Labels": {
+"net.unraid.docker.webui": "http://[IP]:[PORT:3002]/"
+}
+},
+{
+"Names": [
+"/croniclev2"
+],
+"Image": "croniclev2",
+"State": "running",
+"Status": "Up 3 days",
+"Labels": {
+"net.unraid.docker.webui": "http://[IP]:[PORT:8105]/"
+}
+},
+{
+"Names": [
+"/qdirstat"
+],
+"Image": "qdirstat",
+"State": "running",
+"Status": "Up 3 days",
+"Labels": {
+"net.unraid.docker.webui": "http://[IP]:[PORT:8103]/"
+}
+},
+{
+"Names": [
+"/ApacheGuacamole"
+],
+"Image": "apacheguacamole",
+"State": "running",
+"Status": "Up 3 days",
+"Labels": {}
+},
+{
+"Names": [
+"/omada-controller"
+],
+"Image": "omada-controller",
+"State": "running",
+"Status": "Up 3 days",
+"Labels": {
+"net.unraid.docker.webui": "http://[IP]:[PORT:8043]/"
+}
+},
+{
+"Names": [
+"/binhex-syncthing"
+],
+"Image": "binhex-syncthing",
+"State": "running",
+"Status": "Up 3 days",
+"Labels": {
+"net.unraid.docker.webui": "http://[IP]:[PORT:8384]/"
+}
+},
+{
+"Names": [
+"/mariadb-NC"
+],
+"Image": "mariadb-nc",
+"State": "running",
+"Status": "Up 3 days",
+"Labels": {}
+},
+{
+"Names": [
+"/MariaDB-ManyFold"
+],
+"Image": "mariadb-manyfold",
+"State": "running",
+"Status": "Up 3 days",
+"Labels": {}
+},
+{
+"Names": [
+"/Redis-Manyfold"
+],
+"Image": "redis-manyfold",
+"State": "running",
+"Status": "Up 3 days",
+"Labels": {}
+},
+{
+"Names": [
+"/AMP"
+],
+"Image": "amp",
+"State": "running",
+"Status": "Up 3 days",
+"Labels": {
+"net.unraid.docker.webui": "http://[IP]:[PORT:8080]/"
+}
+},
+{
+"Names": [
+"/epicgames-freegames"
+],
+"Image": "epicgames-freegames",
+"State": "running",
+"Status": "Up 3 days",
+"Labels": {
+"titan.name": "Free Epic games",
+"titan.group": "Games",
+"titan.audience": "friends",
+"net.unraid.docker.webui": "http://[IP]:[PORT:3055]/"
+}
+},
+{
+"Names": [
+"/Hermes-Agent"
+],
+"Image": "hermes-agent",
+"State": "exited",
+"Status": "Exited (0) 2 days ago",
+"Labels": {}
+},
+{
+"Names": [
+"/omi-app-hermes-agent"
+],
+"Image": "omi-app-hermes-agent",
+"State": "exited",
+"Status": "Exited (0) 2 days ago",
+"Labels": {}
+},
+{
+"Names": [
+"/omi-apps-gateway"
+],
+"Image": "omi-apps-gateway",
+"State": "exited",
+"Status": "Exited (0) 2 days ago",
+"Labels": {}
+},
+{
+"Names": [
+"/omi-firestore-ui-proxy"
+],
+"Image": "omi-firestore-ui-proxy",
+"State": "exited",
+"Status": "Exited (0) 2 days ago",
+"Labels": {}
+},
+{
+"Names": [
+"/LiteLLM"
+],
+"Image": "litellm",
+"State": "exited",
+"Status": "Exited (0) 2 days ago",
+"Labels": {}
+},
+{
+"Names": [
+"/n8n-mcp"
+],
+"Image": "n8n-mcp",
+"State": "exited",
+"Status": "Exited (0) 2 days ago",
+"Labels": {}
+},
+{
+"Names": [
+"/mcp-vault"
+],
+"Image": "mcp-vault",
+"State": "exited",
+"Status": "Exited (0) 2 days ago",
+"Labels": {}
+},
+{
+"Names": [
+"/ollama-mi50"
+],
+"Image": "ollama-mi50",
+"State": "exited",
+"Status": "Exited (0) 2 days ago",
+"Labels": {}
+},
+{
+"Names": [
+"/Kokoro-FastAPI---GPU"
+],
+"Image": "kokoro-fastapi---gpu",
+"State": "exited",
+"Status": "Exited (0) 2 days ago",
+"Labels": {}
+},
+{
+"Names": [
+"/whispercpp-transcriber"
+],
+"Image": "whispercpp-transcriber",
+"State": "exited",
+"Status": "Exited (0) 2 days ago",
+"Labels": {}
+},
+{
+"Names": [
+"/affine_server"
+],
+"Image": "affine_server",
+"State": "exited",
+"Status": "Exited (0) 2 days ago",
+"Labels": {}
+},
+{
+"Names": [
+"/affine_postgres"
+],
+"Image": "affine_postgres",
+"State": "exited",
+"Status": "Exited (0) 2 days ago",
+"Labels": {}
+},
+{
+"Names": [
+"/affine_redis"
+],
+"Image": "affine_redis",
+"State": "exited",
+"Status": "Exited (0) 2 days ago",
+"Labels": {}
+},
+{
+"Names": [
+"/affine_migration_job"
+],
+"Image": "affine_migration_job",
+"State": "exited",
+"Status": "Exited (0) 2 days ago",
+"Labels": {}
+},
+{
+"Names": [
+"/mattermost"
+],
+"Image": "mattermost",
+"State": "exited",
+"Status": "Exited (0) 2 days ago",
+"Labels": {}
+},
+{
+"Names": [
+"/ArchiveBox"
+],
+"Image": "archivebox",
+"State": "exited",
+"Status": "Exited (0) 2 days ago",
+"Labels": {}
+},
+{
+"Names": [
+"/audiobookshelf"
+],
+"Image": "audiobookshelf",
+"State": "exited",
+"Status": "Exited (0) 2 days ago",
+"Labels": {}
+},
+{
+"Names": [
+"/manyfold"
+],
+"Image": "manyfold",
+"State": "exited",
+"Status": "Exited (0) 2 days ago",
+"Labels": {}
+},
+{
+"Names": [
+"/Obsidian-Livesync"
+],
+"Image": "obsidian-livesync",
+"State": "exited",
+"Status": "Exited (0) 2 days ago",
+"Labels": {}
+},
+{
+"Names": [
+"/Tachidesk-Docker"
+],
+"Image": "tachidesk-docker",
+"State": "exited",
+"Status": "Exited (0) 2 days ago",
+"Labels": {}
+},
+{
+"Names": [
+"/TeamSpeak3"
+],
+"Image": "teamspeak3",
+"State": "exited",
+"Status": "Exited (0) 2 days ago",
+"Labels": {}
+},
+{
+"Names": [
+"/homarrmain"
+],
+"Image": "homarrmain",
+"State": "exited",
+"Status": "Exited (0) 2 days ago",
+"Labels": {}
+},
+{
+"Names": [
+"/SearXNG"
+],
+"Image": "searxng",
+"State": "exited",
+"Status": "Exited (0) 2 days ago",
+"Labels": {}
+},
+{
+"Names": [
+"/Cleanarr"
+],
+"Image": "cleanarr",
+"State": "exited",
+"Status": "Exited (0) 2 days ago",
+"Labels": {}
+},
+{
+"Names": [
+"/Huntarr"
+],
+"Image": "huntarr",
+"State": "exited",
+"Status": "Exited (0) 2 days ago",
+"Labels": {}
+},
+{
+"Names": [
+"/Membarr"
+],
+"Image": "membarr",
+"State": "exited",
+"Status": "Exited (0) 2 days ago",
+"Labels": {}
+},
+{
+"Names": [
+"/requestrr"
+],
+"Image": "requestrr",
+"State": "exited",
+"Status": "Exited (0) 2 days ago",
+"Labels": {}
+},
+{
+"Names": [
+"/Nextcloud-ffmpeg"
+],
+"Image": "nextcloud-ffmpeg",
+"State": "exited",
+"Status": "Exited (0) 2 days ago",
+"Labels": {}
+},
+{
+"Names": [
+"/ffmpeg-nvidia"
+],
+"Image": "ffmpeg-nvidia",
+"State": "exited",
+"Status": "Exited (0) 2 days ago",
+"Labels": {}
+},
+{
+"Names": [
+"/Boxarr"
+],
+"Image": "boxarr",
+"State": "exited",
+"Status": "Exited (0) 2 days ago",
+"Labels": {}
+},
+{
+"Names": [
+"/synclounge"
+],
+"Image": "synclounge",
+"State": "exited",
+"Status": "Exited (0) 2 days ago",
+"Labels": {}
+},
+{
+"Names": [
+"/coinpile-old"
+],
+"Image": "coinpile-old",
+"State": "exited",
+"Status": "Exited (0) 2 days ago",
+"Labels": {}
+},
+{
+"Names": [
+"/coinpile-prev"
+],
+"Image": "coinpile-prev",
+"State": "exited",
+"Status": "Exited (0) 2 days ago",
+"Labels": {}
+}
+]

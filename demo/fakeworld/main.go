@@ -25,13 +25,32 @@ var (
 	mu      sync.Mutex
 	running = map[string]bool{"faith": true, "minecraft": false, "valheim": true, "hermes-sam": true, "cloudflared": false}
 	synced  = time.Now().Add(-30 * time.Hour)
+	tunnel  *string
 )
 
 func main() {
 	addr := flag.String("addr", ":9900", "HTTP address for Argos, Kuma, FAITH and the sync job")
 	sock := flag.String("sock", "/tmp/fake-docker.sock", "unix socket that acts as Docker")
 	flag.String("amp", "127.0.0.1:9901", "address for the fake AMP")
+	contFile := flag.String("containers", "", "a Docker container list (JSON) to serve instead of the small demo set, e.g. demo/unraid/containers.json")
+	tunnel = flag.String("tunnel", "cloudflared", "the tunnel container Plex depends on")
 	flag.Parse()
+	if *contFile != "" {
+		b, err := os.ReadFile(*contFile)
+		if err != nil {
+			log.Fatal(err)
+		}
+		var list []map[string]any
+		if err := json.Unmarshal(b, &list); err != nil {
+			log.Fatal(err)
+		}
+		others = list
+		running = map[string]bool{}
+		for _, c := range list {
+			name := nameOf(c)
+			running[name] = c["State"] == "running"
+		}
+	}
 
 	os.Remove(*sock)
 	ln, err := net.Listen("unix", *sock)
@@ -69,7 +88,7 @@ func main() {
 	})
 	m.HandleFunc("GET /plex/identity", func(w http.ResponseWriter, r *http.Request) {
 		mu.Lock()
-		up := running["cloudflared"]
+		up := running[*tunnel]
 		mu.Unlock()
 		if !up {
 			w.WriteHeader(502)
@@ -114,6 +133,16 @@ func j(w http.ResponseWriter, v any) {
 	json.NewEncoder(w).Encode(v)
 }
 
+func nameOf(c map[string]any) string {
+	switch n := c["Names"].(type) {
+	case []string:
+		return strings.TrimPrefix(n[0], "/")
+	case []any:
+		return strings.TrimPrefix(n[0].(string), "/")
+	}
+	return ""
+}
+
 // others are containers only discovery sees (not in titan.yaml).
 var others = []map[string]any{
 	{"Names": []string{"/binhex-sonarr"}, "Image": "binhex/arch-sonarr", "State": "running", "Status": "Up 2 days (healthy)", "Labels": map[string]string{"net.unraid.docker.webui": "http://[IP]:[PORT:8989]/", "titan.group": "Media", "titan.name": "Sonarr", "titan.audience": "family"}},
@@ -125,8 +154,24 @@ var others = []map[string]any{
 func docker(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Path == "/containers/json" {
 		mu.Lock()
-		list := append([]map[string]any{}, others...)
+		list := []map[string]any{}
+		inList := map[string]bool{}
+		for _, c := range others {
+			c2 := map[string]any{}
+			for k, v := range c {
+				c2[k] = v
+			}
+			name := nameOf(c)
+			inList[name] = true
+			if run, ok := running[name]; ok && (c["State"] == "running") != run {
+				c2["State"], c2["Status"] = map[bool]string{true: "running", false: "exited"}[run], map[bool]string{true: "Up 1 second", false: "Exited (0) just now"}[run]
+			}
+			list = append(list, c2)
+		}
 		for name, run := range running {
+			if inList[name] {
+				continue
+			}
 			st, status := "exited", "Exited (0) 1 hour ago"
 			if run {
 				st, status = "running", "Up 26 hours"

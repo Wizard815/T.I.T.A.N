@@ -85,7 +85,9 @@
   /* 3. the uptime list, by type */
   main { padding-top:12px; padding-bottom:48px; }
   .group { margin:0 0 14px; }
-  .group h3 { margin:0 0 4px; font-size:.75rem; color:var(--muted); text-transform:uppercase; letter-spacing:.1em; display:flex; gap:8px; }
+  .group > summary, .more-up > summary { cursor:pointer; margin:0 0 4px; font-size:.75rem; color:var(--muted); text-transform:uppercase; letter-spacing:.1em; display:flex; gap:8px; min-height:28px; align-items:center; }
+  .group > summary span { text-transform:none; letter-spacing:0; }
+  .more-up { margin:6px 0 0 12px; } .more-up > summary { text-transform:none; letter-spacing:0; }
   .rows { border:1px solid var(--line); border-radius:8px; background:var(--card); }
   .row { display:grid; grid-template-columns:84px minmax(0,1fr) 150px 60px auto; gap:10px; align-items:center; padding:6px 10px; border-top:1px solid var(--line); }
   .row:first-child { border-top:none; }
@@ -246,6 +248,7 @@
 <script>
 const $ = id => document.getElementById(id);
 let me = null, timer = null, cards = [];
+const openGroups = new Set();
 
 function el(tag, attrs, ...kids) {
   const e = document.createElement(tag);
@@ -293,11 +296,11 @@ async function loadBoard() {
   cards = data.services;
   const up = cards.filter(c => c.status === 'up').length, down = cards.filter(c => c.status === 'down' && !c.cause).length, knock = cards.filter(c => c.cause).length;
   const last = Math.max(0, ...cards.map(c => c.checked_at || 0));
-  $('stats').replaceChildren(
+  $('stats').replaceChildren(...[
     el('span', { class: 'pill up' }, up + ' up'),
     el('span', { class: 'pill' + (down ? ' down' : '') }, down + ' down'),
     knock ? el('span', { class: 'pill knock' }, knock + ' blocked by those') : null,
-    last ? el('span', { class: 'pill' }, 'checked ' + ago(last)) : null);
+    last ? el('span', { class: 'pill' }, 'checked ' + ago(last)) : null].filter(Boolean));
   const groups = {};
   for (const c of cards) (groups[c.group] ||= []).push(c);
   const order = { down: 0, knock: 1, pending: 2, up: 3 };
@@ -305,9 +308,23 @@ async function loadBoard() {
   for (const g of Object.keys(groups).sort()) {
     const list = groups[g].sort((a, b) => order[stateOf(a)] - order[stateOf(b)] || a.name.localeCompare(b.name));
     const bad = list.filter(c => c.status !== 'up').length;
-    out.push(el('div', { class: 'group' },
-      el('h3', {}, g, el('span', {}, bad ? bad + ' need attention' : 'all good')),
-      el('div', { class: 'rows' }, ...list.map(row))));
+    // A big group that's all fine folds up, so 100 containers don't bury what's broken.
+    const fold = !bad && list.length > 6;
+    const head = el('summary', {}, g, el('span', {}, bad ? bad + ' need attention' : 'all good · ' + list.length));
+    const d = el('details', { class: 'group' }, head);
+    if (!fold || openGroups.has(g)) d.open = true;
+    d.addEventListener('toggle', () => { if (d.open) openGroups.add(g); else openGroups.delete(g); });
+    if (bad) {
+      d.append(el('div', { class: 'rows' }, ...list.filter(c => c.status !== 'up').map(row)));
+      const fine = list.filter(c => c.status === 'up');
+      if (fine.length > 6) {
+        const more = el('details', { class: 'more-up' }, el('summary', {}, fine.length + ' more up'), el('div', { class: 'rows' }, ...fine.map(row)));
+        if (openGroups.has(g + '+')) more.open = true;
+        more.addEventListener('toggle', () => { if (more.open) openGroups.add(g + '+'); else openGroups.delete(g + '+'); });
+        d.append(more);
+      } else if (fine.length) d.lastChild.append(...fine.map(row));
+    } else d.append(el('div', { class: 'rows' }, ...list.map(row)));
+    out.push(d);
   }
   if (!cards.length) out.push(el('p', { class: 'hint' }, 'Nothing to show yet. Ask Wizard which services you can see.'));
   $('groups').replaceChildren(...out);

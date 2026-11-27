@@ -186,3 +186,33 @@ func TestTitan_CavemanAndExplain(t *testing.T) {
 		t.Fatalf("kim: %v", b)
 	}
 }
+
+func TestTitan_SkillsFollowTheRole(t *testing.T) {
+	w := newWorld(t)
+	var sys, skillOut string
+	w.argos.reply = func(model string, body map[string]any) (int, map[string]any) {
+		if model == "guard-m" {
+			return 200, text(`{"verdict":"allow","reason":"ok"}`)
+		}
+		msgs := body["messages"].([]any)
+		sys = msgs[0].(map[string]any)["content"].(string)
+		if out, isTool := lastTool(body); isTool {
+			skillOut = out
+			return 200, text("🔧 ok")
+		}
+		return 200, toolCall("read_skill", `{"name":"faith-down"}`)
+	}
+	w.login("alex").do("POST", "/api/chat", map[string]string{"message": "faith is slow"})
+	if strings.Contains(sys, "faith-down") || !strings.Contains(sys, "game-server") || !strings.Contains(skillOut, "no playbook") {
+		t.Fatalf("a friend must not get family playbooks: %s", skillOut)
+	}
+	w.login("sam").do("POST", "/api/chat", map[string]string{"message": "faith is slow"})
+	if !strings.Contains(sys, "faith-down") || !strings.Contains(skillOut, "Argos") {
+		t.Fatalf("family gets faith-down: %s", skillOut)
+	}
+	// In the room even family gets friend playbooks only.
+	w.login("sam").do("POST", "/api/room", map[string]string{"text": "/agent faith is slow"})
+	if strings.Contains(sys, "faith-down") || !strings.Contains(skillOut, "no playbook") {
+		t.Fatalf("room: %s", skillOut)
+	}
+}

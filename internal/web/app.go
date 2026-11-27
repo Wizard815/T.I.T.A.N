@@ -24,6 +24,7 @@ import (
 	"github.com/wizard815/titan/internal/db"
 	"github.com/wizard815/titan/internal/hands"
 	"github.com/wizard815/titan/internal/redact"
+	"github.com/wizard815/titan/internal/skills"
 )
 
 // App holds everything and implements agent.Tools.
@@ -39,6 +40,8 @@ type App struct {
 	Salt        string // for pseudonyms in events
 	OwnerName   string // shown to people, e.g. "Wizard"
 	Secure      bool   // Secure cookies (behind HTTPS)
+
+	Playbooks skills.Set // nil = the built-in ones
 
 	recheck time.Duration // wait after a fix before checking again
 	wg      sync.WaitGroup
@@ -536,6 +539,34 @@ func (a *App) AddUpdate(ctx context.Context, u agent.User, id, text string, work
 	}
 	a.event(ctx, "update", map[string]any{"who": a.who(u.Name), "role": u.Role, "service": s.ID, "text": text})
 	return a.DB.AddUpdate(ctx, db.Update{Service: s.ID, Author: u.Name, Text: text})
+}
+
+// Skills lists the playbooks u's helper may read. In the room that's
+// friend skills only, because everyone reads the answer.
+func (a *App) Skills(u agent.User) map[string]string {
+	out := map[string]string{}
+	for _, s := range a.playbooks().For(u.Role) {
+		out[s.Name] = s.Description
+	}
+	return out
+}
+
+func (a *App) Skill(u agent.User, name string) (string, error) {
+	s, ok := a.playbooks()[strings.TrimSpace(name)]
+	if !ok || !config.AtLeast(u.Role, s.Audience) {
+		return "", fmt.Errorf("there's no playbook called %q for this person", name)
+	}
+	return s.Body, nil
+}
+
+var builtinSkills = sync.OnceValue(func() skills.Set { s, _ := skills.Load(""); return s })
+
+// playbooks is the loaded set, or the built-in one when none was loaded.
+func (a *App) playbooks() skills.Set {
+	if a.Playbooks == nil {
+		return builtinSkills()
+	}
+	return a.Playbooks
 }
 
 // FaithLink is FAITH's address for family and up.

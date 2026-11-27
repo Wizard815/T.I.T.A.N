@@ -524,6 +524,74 @@ func TestTitan_FallbackModelTakesOver(t *testing.T) {
 	}
 }
 
+func TestTitan_ModelErrorMidTurn(t *testing.T) {
+	w := newWorld(t)
+	w.argos.reply = func(model string, body map[string]any) (int, map[string]any) {
+		if model == "guard-m" {
+			return 200, text(`{"verdict":"allow","reason":"ok"}`)
+		}
+		out, isTool := lastTool(body)
+		switch {
+		case !isTool && model == "agent-m":
+			return 200, toolCall("propose_fix", `{"service":"minecraft","action":"start_service"}`)
+		case model == "agent-m":
+			return 502, map[string]any{"error": "Provider returned an empty response"}
+		case strings.HasPrefix(out, "Offered"):
+			return 200, text("🔧 Minecraft sleep. Press Yes.")
+		}
+		return 200, text("hm")
+	}
+	_, turn := w.login("alex").do("POST", "/api/chat", map[string]string{"message": "minecraft is down"})
+	props, _ := turn["proposals"].([]any)
+	if turn["reply"] != "🔧 Start Minecraft? Press Yes." || len(props) != 1 {
+		t.Fatalf("a fix already offered should survive a model error: %v", turn)
+	}
+	// Without a fix on offer, the fallback picks up the turn.
+	w.argos.reply = func(model string, body map[string]any) (int, map[string]any) {
+		if model == "guard-m" {
+			return 200, text(`{"verdict":"allow","reason":"ok"}`)
+		}
+		if _, isTool := lastTool(body); !isTool && model == "agent-m" {
+			return 200, toolCall("status", "{}")
+		}
+		if model == "agent-m" {
+			return 502, map[string]any{"error": "Provider returned an empty response"}
+		}
+		return 200, text("✅ All up.")
+	}
+	_, turn = w.login("alex").do("POST", "/api/chat", map[string]string{"message": "how is it"})
+	if turn["model"] != "fallback-m" || turn["reply"] != "✅ All up." {
+		t.Fatalf("the fallback should finish the turn: %v", turn)
+	}
+}
+
+func TestTitan_PressYesWithoutAButtonGetsNudged(t *testing.T) {
+	w := newWorld(t)
+	nudges := 0
+	w.argos.reply = func(model string, body map[string]any) (int, map[string]any) {
+		if model == "guard-m" {
+			return 200, text(`{"verdict":"allow","reason":"ok"}`)
+		}
+		msgs := body["messages"].([]any)
+		last := msgs[len(msgs)-1].(map[string]any)
+		out, isTool := lastTool(body)
+		switch {
+		case strings.Contains(str(last["content"]), "there is no Yes button"):
+			nudges++
+			return 200, toolCall("propose_fix", `{"service":"minecraft","action":"start_service"}`)
+		case isTool && strings.HasPrefix(out, "Offered"):
+			return 200, text("🔧 Me start. Press Yes.")
+		}
+		return 200, text("🔴 Minecraft down. Press Yes.")
+	}
+	_, turn := w.login("alex").do("POST", "/api/chat", map[string]string{"message": "minecraft is down"})
+	if props, _ := turn["proposals"].([]any); len(props) != 1 || nudges != 1 {
+		t.Fatalf("nudge: %d %v", nudges, turn)
+	}
+}
+
+func str(v any) string { s, _ := v.(string); return s }
+
 func TestTitan_RestartLimitPerHour(t *testing.T) {
 	w := newWorld(t)
 	c := w.login("kim")
