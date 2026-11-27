@@ -114,7 +114,29 @@ func j(w http.ResponseWriter, v any) {
 	json.NewEncoder(w).Encode(v)
 }
 
+// others are containers only discovery sees (not in titan.yaml).
+var others = []map[string]any{
+	{"Names": []string{"/binhex-sonarr"}, "Image": "binhex/arch-sonarr", "State": "running", "Status": "Up 2 days (healthy)", "Labels": map[string]string{"net.unraid.docker.webui": "http://[IP]:[PORT:8989]/", "titan.group": "Media", "titan.name": "Sonarr", "titan.audience": "family"}},
+	{"Names": []string{"/mealie"}, "Image": "mealie", "State": "running", "Status": "Up 5 days", "Labels": map[string]string{"net.unraid.docker.webui": "http://[IP]:[PORT:8110]/", "titan.group": "Family", "titan.audience": "family", "titan.name": "Mealie (recipes)"}},
+	{"Names": []string{"/homebox"}, "Image": "homebox", "State": "running", "Status": "Up 1 hour (unhealthy)", "Labels": map[string]string{"net.unraid.docker.webui": "http://[IP]:[PORT:8111]/"}},
+	{"Names": []string{"/immich"}, "Image": "immich", "State": "exited", "Status": "Exited (0) 3 days ago"},
+}
+
 func docker(w http.ResponseWriter, r *http.Request) {
+	if r.URL.Path == "/containers/json" {
+		mu.Lock()
+		list := append([]map[string]any{}, others...)
+		for name, run := range running {
+			st, status := "exited", "Exited (0) 1 hour ago"
+			if run {
+				st, status = "running", "Up 26 hours"
+			}
+			list = append(list, map[string]any{"Names": []string{"/" + name}, "Image": name, "State": st, "Status": status})
+		}
+		mu.Unlock()
+		j(w, list)
+		return
+	}
 	parts := strings.Split(strings.Trim(r.URL.Path, "/"), "/")
 	if len(parts) < 3 || parts[0] != "containers" {
 		w.WriteHeader(404)

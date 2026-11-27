@@ -56,6 +56,18 @@ type Config struct {
 	Network  *Network  `yaml:"network"`
 	Style    string    `yaml:"style"` // caveman (default) or plain
 	Room     Room      `yaml:"room"`
+	Discover Discover  `yaml:"discover"`
+}
+
+// Discover makes cards from what titan-hands sees in Docker, so a new app
+// shows up without editing this file. Services listed under services:
+// win (matched by container name).
+type Discover struct {
+	Docker   bool     `yaml:"docker"`   // list every container
+	Audience string   `yaml:"audience"` // who sees found containers; default owner (a titan.audience label overrides)
+	Host     string   `yaml:"host"`     // fills [IP] in Unraid's web UI links, e.g. 192.168.20.5
+	Skip     []string `yaml:"skip"`     // container names to leave out
+	Stopped  bool     `yaml:"stopped"`  // also show containers that are stopped (off by default)
 }
 
 // Room is the shared chat everyone signed in can talk in.
@@ -134,6 +146,7 @@ type Service struct {
 	DependsOn []string `yaml:"depends_on"` // service ids; when one is down, this card says so
 	Info      []Info   `yaml:"info"`       // extra facts shown on the card
 	Actions   []string `yaml:"actions"`
+	Link      string   `yaml:"link"` // an "Open" button on the card
 	Check     Check    `yaml:"check"`
 }
 
@@ -145,6 +158,7 @@ type Check struct {
 	Freshness *Freshness `yaml:"freshness"` // a "last ran" time must be recent
 	AMP       bool       `yaml:"amp"`       // the AMP instance's game is running
 	Pipeline  bool       `yaml:"pipeline"`  // the media pipeline isn't stuck
+	Found     string     `yaml:"-"`         // set for discovered containers: read from the inventory
 }
 
 // Info is one extra fact on a card. Give exactly one kind. Keys are read
@@ -210,6 +224,9 @@ func ParseDuration(s string) (time.Duration, error) {
 var idPattern = regexp.MustCompile(`^[a-z0-9][a-z0-9_-]{0,40}$`)
 
 // audience words people write, mapped to roles.
+// AudienceRole turns "friends", "family" or "owner" into a role.
+func AudienceRole(a string) (string, bool) { return audienceRole(a) }
+
 func audienceRole(a string) (string, bool) {
 	switch strings.ToLower(strings.TrimSpace(a)) {
 	case "friends", "friend", "everyone":
@@ -269,6 +286,11 @@ func Parse(b []byte) (*Config, error) {
 	case "kuma", "gatus":
 	default:
 		return nil, fmt.Errorf("kuma.kind must be kuma or gatus, got %q", c.Kuma.Kind)
+	}
+	if r, ok := audienceRole(c.Discover.Audience); ok {
+		c.Discover.Audience = r
+	} else {
+		return nil, fmt.Errorf("discover.audience must be friends, family or owner, got %q", c.Discover.Audience)
 	}
 	if c.Kuma.Kind == "kuma" && c.Kuma.URL != "" && c.Kuma.Slug == "" {
 		return nil, fmt.Errorf("kuma.slug is needed: the name of a published Uptime Kuma status page")

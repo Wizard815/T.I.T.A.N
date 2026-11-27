@@ -28,6 +28,12 @@ The page has your own chat and a shared `#room` across the top third, with the l
 
 ![A friend starts Enshrouded through AMP; Plex is down because the tunnel is](docs/images/amp-and-root-cause.png)
 
+## Connecting it
+
+Turn on `discover: {docker: true}` and every container on Unraid shows up as a card with an **Open** button. No per-app setup is needed. Labels like `titan.audience=family` decide who sees what. Add an app under `services:` only for fixes or extra info. See [docs/connect.md](docs/connect.md) for the whole picture.
+
+![Containers found through Docker, with Open buttons](docs/images/found-containers.png)
+
 ## Who sees what
 
 | Role | Sees | Can fix |
@@ -60,6 +66,7 @@ Open http://127.0.0.1:9910 and sign in as `wizard`, `sam` (family) or `alex` (fr
 
 - [docs/models.md](docs/models.md): picking the guard, helper and fallback in Argos (local or cloud)
 - [docs/actions.md](docs/actions.md): the fixes, AMP game servers, titan-hands' allowlist, and adding a service
+- [docs/connect.md](docs/connect.md): how it connects to the homelab, finding containers, labels
 - [docs/page.md](docs/page.md): the layout, caveman replies and Explain, the room and `/agent`, updates
 - [docs/cards.md](docs/cards.md): extra card info and "down because of something else"
 - [docs/overseer.md](docs/overseer.md): the event feed Overseer reads for training data

@@ -47,6 +47,8 @@ type Reply struct {
 	State   *State    `json:"state,omitempty"`
 	Lines   []string  `json:"lines,omitempty"`
 	AMP     *AMPState `json:"amp,omitempty"`
+
+	Containers []Container `json:"containers,omitempty"`
 }
 
 type State struct {
@@ -63,6 +65,7 @@ type Rules struct {
 	Syncs      map[string]string          // job -> URL to POST
 	PerHour    int                        // changing ops per target per hour
 	AMP        *AMPRules                  // game servers in AMP; nil = off
+	NoDiscover bool                       // refuse the read-only container list
 }
 
 // ParseContainers reads "faith:restart:logs minecraft" (space or comma
@@ -164,6 +167,9 @@ func (s *Server) do(w http.ResponseWriter, r *http.Request) {
 
 // Do runs one operation after checking the allowlist and the limit.
 func (s *Server) Do(ctx context.Context, req Request) (Reply, int) {
+	if req.Op == OpList {
+		return s.list(ctx)
+	}
 	if strings.HasPrefix(req.Op, "amp_") {
 		return s.amp(ctx, req)
 	}

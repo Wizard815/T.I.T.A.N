@@ -76,8 +76,10 @@
   .irc .rm { min-height:0; padding:0 6px; margin-left:6px; font-size:.7rem; background:transparent; color:var(--muted); border-color:var(--line); }
   .irc .confirm { margin:2px 0 4px; }
   @media (max-width:760px) {
-    .panes { grid-template-columns:minmax(0,1fr); } .tabs { display:flex; }
-    .pane.off { display:none; }
+    .panes { grid-template-columns:minmax(0,1fr); gap:0; } .tabs { display:flex; }
+    .pane.off { display:none; } .pane h2 { display:none; }
+    .chat .wrap { gap:6px; padding-top:6px; padding-bottom:6px; }
+    .ask input { min-height:44px; } .ask button { min-width:64px; }
   }
 
   /* 3. the uptime list, by type */
@@ -96,11 +98,36 @@
   .beats { display:flex; gap:1px; height:14px; } .beats i { flex:1; background:var(--good); border-radius:1px; } .beats i.d { background:var(--bad); } .beats i.e { background:var(--track); }
   .pct { font-size:.8rem; text-align:right; font-variant-numeric:tabular-nums; color:var(--muted); } .pct b { color:var(--ink); }
   .acts { display:flex; gap:4px; flex-wrap:wrap; justify-content:flex-end; } .acts button { min-height:32px; padding:2px 8px; font-size:.78rem; }
+  .acts a.open { display:inline-flex; align-items:center; min-height:32px; padding:2px 10px; font-size:.78rem; border:1px solid var(--line); border-radius:8px; text-decoration:none; color:var(--head); white-space:nowrap; }
   .acts button.askb { background:var(--warn); border-color:var(--warn); color:#1d1300; }
   .rowmsg { grid-column:1 / -1; } .rowmsg:empty { display:none; }
+  .what .mst { display:none; font-size:.75rem; margin-right:6px; }
+  .what .mst.up { color:var(--good); } .what .mst.down { color:var(--bad); } .what .mst.knock { color:var(--warn); } .what .mst.pending { color:var(--muted); }
+  .sh { display:none; }
+  #menu { display:none; }
   @media (max-width:760px) {
-    .row { grid-template-columns:70px minmax(0,1fr); } .beats, .pct { display:none; } .acts { grid-column:1 / -1; justify-content:flex-start; }
-    .chat { height:38vh; }
+    /* phone: one-line header, menu behind a button, rows as compact cards */
+    header.top .wrap { gap:8px; padding-top:6px; padding-bottom:6px; }
+    .brand b { font-size:.95rem; } .logo { width:22px; height:22px; }
+    .stats { order:3; width:100%; flex-wrap:nowrap; overflow-x:auto; scrollbar-width:none; }
+    .stats::-webkit-scrollbar { display:none; }
+    #menu { display:inline-flex; margin-left:auto; min-height:40px; padding:4px 12px; }
+    nav { display:none; width:100%; order:4; margin:0; justify-content:flex-start; }
+    nav.open { display:flex; }
+    .chat { height:46vh; min-height:300px; }
+    main { padding-top:8px; }
+    .row { grid-template-columns:minmax(0,1fr) auto; gap:4px 8px; padding:8px 10px; }
+    .row .st { display:none; }
+    .row .what { grid-column:1; } .row .pct { grid-column:2; grid-row:1; display:block; }
+    .row .pct br, .row .pct .lbl { display:none; }
+    .beats { display:none; }
+    .what .mst { display:inline; }
+    .acts { grid-column:1 / -1; justify-content:flex-start; flex-wrap:nowrap; overflow-x:auto; scrollbar-width:none; padding-bottom:2px; }
+    .acts::-webkit-scrollbar { display:none; }
+    .acts button, .acts a.open { min-height:40px; white-space:nowrap; flex:none; padding:2px 12px; }
+    .lg { display:none; } .sh { display:inline; }
+    #menu { align-items:center; gap:6px; }
+    .confirm > span:first-child { flex-basis:100%; }
   }
 
   dialog { max-width:620px; width:calc(100% - 32px); background:var(--card); color:var(--ink); border:1px solid var(--line); border-radius:10px; padding:16px; }
@@ -116,6 +143,7 @@
 <header class="top"><div class="wrap">
   <div class="brand"><svg class="logo" viewBox="0 0 32 32" aria-hidden="true"><path d="M16 3l11 5v7c0 7-5 12-11 14C10 27 5 22 5 15V8z" fill="none" stroke="var(--accent)" stroke-width="2"/><path d="M10 16l4 4 8-9" fill="none" stroke="var(--head)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg><b>T.I.T.A.N</b></div>
   <div class="stats" id="stats" role="status" aria-live="polite"></div>
+  <button class="quiet hidden" id="menu" aria-expanded="false" aria-controls="nav">☰ <span id="menuWho"></span></button>
   <nav id="nav" class="hidden" aria-label="Main">
     <span id="whoami" class="who"></span>
     <a id="faith" class="hidden" href="#" target="_blank" rel="noopener">Ask FAITH</a>
@@ -160,7 +188,7 @@
           <h2><span>#room</span><span>everyone signed in · /agent asks T.I.T.A.N</span></h2>
           <div class="irc" id="irc" role="log" aria-live="polite" aria-label="Room chat"></div>
           <form class="ask" id="roomForm">
-            <input id="roomText" maxlength="500" autocomplete="off" aria-label="Message to the room" placeholder="Say hi. /agent is plex up? asks T.I.T.A.N here">
+            <input id="roomText" maxlength="500" autocomplete="off" aria-label="Message to the room" placeholder="Say hi · /agent asks T.I.T.A.N">
             <button type="submit" id="roomSend">Send</button>
           </form>
         </div>
@@ -245,6 +273,8 @@ function show(view) {
   $('ownerView').classList.toggle('hidden', view !== 'owner');
   $('accountView').classList.toggle('hidden', view !== 'account');
   $('nav').classList.toggle('hidden', view === 'login');
+  $('menu').classList.toggle('hidden', view === 'login');
+  $('nav').classList.remove('open'); $('menu').setAttribute('aria-expanded', 'false');
   document.querySelectorAll('nav [data-view]').forEach(b => { if (b.dataset.view === view) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current'); });
   clearInterval(timer);
   clearInterval(roomTimer);
@@ -290,18 +320,20 @@ function row(c) {
   for (const b of c.beats) beats.append(el('i', { class: b ? '' : 'd' }));
   const msg = el('div', { class: 'rowmsg', role: 'status', 'aria-live': 'polite' });
   const acts = el('div', { class: 'acts' });
-  if (c.status === 'down') acts.append(el('button', { class: 'askb', onclick: () => askAbout(c) }, 'Ask T.I.T.A.N'));
-  for (const a of c.actions) acts.append(el('button', { class: 'quiet', onclick: () => act(c, a, msg) }, a.label));
-  acts.append(el('button', { class: 'quiet', 'aria-label': 'Updates for ' + c.name, onclick: () => openUpdates(c) }, 'Updates' + (c.updates_24h ? ' (' + c.updates_24h + ')' : '')));
+  const two = (lg, sh) => [el('span', { class: 'lg' }, lg), el('span', { class: 'sh', 'aria-hidden': 'true' }, sh)];
+  if (c.status === 'down') acts.append(el('button', { class: 'askb', 'aria-label': 'Ask T.I.T.A.N about ' + c.name, onclick: () => askAbout(c) }, ...two('Ask T.I.T.A.N', '🔎 Ask')));
+  for (const a of c.actions) acts.append(el('button', { class: 'quiet', onclick: () => act(c, a, msg) }, ...(a.label === 'Check again' ? two('Check again', 'Check') : [a.label])));
+  if (c.link && /^https?:\/\//.test(c.link)) acts.append(el('a', { class: 'open', href: c.link, target: '_blank', rel: 'noopener', 'aria-label': 'Open ' + c.name }, ...two('Open', '↗')));
+  acts.append(el('button', { class: 'quiet', 'aria-label': 'Updates for ' + c.name, onclick: () => openUpdates(c) }, ...two('Updates', '📝'), c.updates_24h ? ' (' + c.updates_24h + ')' : ''));
   return el('div', { class: 'row' },
     el('div', { class: 'st ' + st }, el('i'), words[st]),
     el('div', { class: 'what' },
-      el('div', {}, el('b', {}, c.name + (c.personal ? ' (yours)' : '')), ' ', el('span', { class: 'd' }, c.detail)),
+      el('div', {}, el('span', { class: 'mst ' + st }, '● ' + words[st]), el('b', {}, c.name + (c.personal ? ' (yours)' : '')), ' ', el('span', { class: 'd' }, c.detail)),
       c.cause ? el('div', { class: 'c' }, '↳ because ' + c.cause + ' is down') : null,
       c.info.length ? el('div', { class: 'x' }, c.info.join(' · ')) : null,
       c.working.length ? el('div', { class: 'w' }, '🛠 ' + c.working.join(', ') + ' on it') : null),
     beats,
-    el('div', { class: 'pct', title: '7 days ' + pct(c.uptime['7d']) + ', 30 days ' + pct(c.uptime['30d']) }, el('b', {}, pct(c.uptime['24h'])), el('br'), '24h'),
+    el('div', { class: 'pct', title: '7 days ' + pct(c.uptime['7d']) + ', 30 days ' + pct(c.uptime['30d']) }, el('b', {}, pct(c.uptime['24h'])), el('br'), el('span', { class: 'lbl' }, '24h')),
     acts, msg);
 }
 
@@ -517,10 +549,12 @@ $('loginForm').addEventListener('submit', async ev => {
 });
 $('signout').addEventListener('click', async () => { try { await api('/api/logout', { method: 'POST' }); } catch {} me = null; $('log').replaceChildren(); $('irc').replaceChildren(); roomLast = 0; show('login'); });
 document.querySelectorAll('nav [data-view]').forEach(b => b.addEventListener('click', () => show(b.dataset.view)));
+$('menu').addEventListener('click', () => { const o = $('nav').classList.toggle('open'); $('menu').setAttribute('aria-expanded', String(o)); });
 
 async function start() {
   try { me = await api('/api/me'); } catch { show('login'); return; }
   $('whoami').textContent = me.name + ' · ' + me.role;
+  $('menuWho').textContent = me.name;
   $('ownerTab').classList.toggle('hidden', me.role !== 'owner');
   if (me.faith_url) { $('faith').href = me.faith_url; $('faith').classList.remove('hidden'); } else $('faith').classList.add('hidden');
   if (!$('log').children.length) say('bot', '👋 Hi ' + me.name + '. Something broke? Tell me.');

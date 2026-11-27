@@ -97,6 +97,8 @@ type Card struct {
 	Updates   int                `json:"updates_24h"`     // updates in the last day
 	Working   []string           `json:"working"`         // who said they're on it
 	Actions   []ActionView       `json:"actions"`
+	Link      string             `json:"link,omitempty"` // the Open button
+	Found     bool               `json:"found,omitempty"`
 }
 
 type ActionView struct {
@@ -119,7 +121,7 @@ func (a *App) Board(ctx context.Context, u agent.User) ([]Card, error) {
 		if !a.sees(s, u) {
 			continue
 		}
-		c := Card{ID: s.ID, Name: s.Name, Group: s.Group, About: s.About, Personal: s.Person != "", Status: "pending", Detail: "Not checked yet", Uptime: map[string]float64{}, Beats: []int{}, Info: a.Runner.Facts(s.ID)}
+		c := Card{ID: s.ID, Name: s.Name, Group: s.Group, About: s.About, Personal: s.Person != "", Status: "pending", Detail: "Not checked yet", Uptime: map[string]float64{}, Beats: []int{}, Info: a.Runner.Facts(s.ID), Link: s.Link, Found: s.Check.Found != ""}
 		if c.Info == nil {
 			c.Info = []string{}
 		}

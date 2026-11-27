@@ -31,6 +31,13 @@ kuma:
 
 # Or Gatus instead:  kuma: {kind: gatus, url: http://gatus:8080}
 
+# Every container titan-hands sees becomes a card (read only, yours unless labelled).
+discover:
+  docker: true
+  host: 192.168.20.5        # Unraid's IP, for the Open buttons
+  audience: owner
+  skip: []
+
 style: caveman              # short replies with an Explain button; or plain
 room:
   words: []                 # extra words to mask in #room (swears and slurs are built in)

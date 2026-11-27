@@ -9,6 +9,7 @@
 //	TITAN_HANDS_AMP_URL     AMP's address, e.g. http://AMP:8080 (game servers)
 //	TITAN_HANDS_AMP_USER, TITAN_HANDS_AMP_PASSWORD   an AMP user that may start and restart those instances
 //	TITAN_HANDS_AMP_INSTANCES  "Enshrouded01" (instance or friendly names)
+//	TITAN_HANDS_DISCOVER    0 stops titan listing containers (names, state, ports, titan.* and Unraid web UI labels)
 //	DOCKER_SOCK             default /var/run/docker.sock
 //	TITAN_HANDS_ADDR        default :8111
 package main
@@ -53,7 +54,7 @@ func main() {
 			fail("TITAN_HANDS_AMP_URL is set, so TITAN_HANDS_AMP_USER and TITAN_HANDS_AMP_PASSWORD are needed too")
 		}
 	}
-	s := &hands.Server{Token: tok, Rules: hands.Rules{Containers: cs, Syncs: ss, PerHour: per, AMP: amp}, Docker: hands.DockerClient(sock), HTTP: &http.Client{Timeout: 60 * time.Second}}
+	s := &hands.Server{Token: tok, Rules: hands.Rules{Containers: cs, Syncs: ss, PerHour: per, AMP: amp, NoDiscover: os.Getenv("TITAN_HANDS_DISCOVER") == "0"}, Docker: hands.DockerClient(sock), HTTP: &http.Client{Timeout: 60 * time.Second}}
 	names := make([]string, 0, len(cs))
 	for n := range cs {
 		names = append(names, n)

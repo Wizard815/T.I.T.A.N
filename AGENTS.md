@@ -5,7 +5,7 @@ T.I.T.A.N is a status board and help desk for Wizard's friends and family. Go 1.
 | Path | What |
 |---|---|
 | `cmd/titan` | board, login, chat, Overseer feed |
-| `cmd/titan-hands` | the only process with the Docker socket and the AMP login; named operations from its own allowlist |
+| `cmd/titan-hands` | the only process with the Docker socket and the AMP login; named operations from its own allowlist, plus the read-only container list (`list`) |
 | `internal/agent` | guard model, helper model with fallback, the code screen |
 | `internal/checks` | http, container, Uptime Kuma and freshness checks; uptime |
 | `internal/web` | routes, roles, fixes, owner pages |
@@ -19,6 +19,7 @@ T.I.T.A.N is a status board and help desk for Wizard's friends and family. Go 1.
 - **Guard first, allowlist always.** Every chat message goes through `Agent.Check`. The guard fails closed (ask_owner). The allowlist, not the guard, is what keeps things safe.
 - **Changing actions need the person's Yes**, checked against their role again when they press it.
 - **The room is public to everyone signed in.** `/agent` there runs as `RoomUser` (friend at most, no personal services, its own history). Never give it the asker's role or private history.
+- **Found containers are look-only.** `discover:` cards never get actions; fixes need a `services:` entry and titan-hands' allowlist. `list` passes on only the labels in `keepLabel`.
 - **Events carry pseudonyms, not names.** Overseer is Wizard's alone and only reads `/api/events`.
 - **Models are Argos names** (`titan-guard`, `titan-agent`, `titan-fallback`); pick real models in Argos.
 - Secrets in env vars only. Dependencies pinned.

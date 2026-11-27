@@ -144,6 +144,9 @@ type Runner struct {
 	last    map[string]db.Result
 	factsBy map[string][]string
 	extra   []config.Service // monitors imported from Kuma
+	found   []config.Service // containers found through titan-hands
+	inv     map[string]hands.Container
+	invErr  error
 }
 
 func (r *Runner) now() time.Time {
@@ -158,7 +161,8 @@ func (r *Runner) Services() []config.Service {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	out := append([]config.Service{}, r.Cfg.Services...)
-	return append(out, r.extra...)
+	out = append(out, r.extra...)
+	return append(out, r.found...)
 }
 
 // Last is the newest result for a service.
@@ -201,6 +205,7 @@ func (r *Runner) Round(ctx context.Context) {
 		}
 		r.importKuma(mons)
 	}
+	r.discover(ctx)
 	svcs := r.Services()
 	results := make([]db.Result, len(svcs))
 	var wg sync.WaitGroup
@@ -310,6 +315,19 @@ func (r *Runner) check(ctx context.Context, s config.Service, mons map[string]Mo
 	}
 	c := s.Check
 	switch {
+	case c.Found != "":
+		k, ok, err := r.foundState(c.Found)
+		switch {
+		case err != nil:
+			return done(false, "Can't see Docker right now: "+err.Error())
+		case !ok:
+			return done(false, "The container is gone")
+		case k.State != "running":
+			return done(false, "Container is "+k.State)
+		case k.Health == "unhealthy":
+			return done(false, "Running but unhealthy")
+		}
+		return done(true, "Running"+map[bool]string{true: ", healthy", false: ""}[k.Health == "healthy"])
 	case c.HTTP != "":
 		req, _ := http.NewRequestWithContext(ctx, "GET", c.HTTP, nil)
 		resp, err := r.HTTP.Do(req)

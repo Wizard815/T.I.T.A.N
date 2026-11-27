@@ -31,3 +31,6 @@ pipeline:
   tautulli: {url: "http://127.0.0.1:9900/tautulli"}
 room:
   words: [grobble]
+discover:
+  docker: true          # every container titan-hands sees becomes a card
+  host: 127.0.0.1       # fills [IP] in Unraid's web UI links
