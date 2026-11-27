@@ -1,6 +1,7 @@
 # T.I.T.A.N on Unraid. titan is on ai_net (to reach Argos, FAITH, Kuma) and
 # a private network shared only with titan-hands. Only titan-hands gets the
-# Docker socket, and it is on no other network.
+# Docker socket. It publishes no port and joins no other network, so only
+# titan can reach it; it can still reach out to AMP and sync jobs.
 services:
   titan:
     image: titan:latest
@@ -26,6 +27,11 @@ services:
       TITAN_HANDS_CONTAINERS: ${TITAN_HANDS_CONTAINERS:-}
       TITAN_HANDS_SYNCS: ${TITAN_HANDS_SYNCS:-}
       TITAN_HANDS_PER_HOUR: ${TITAN_HANDS_PER_HOUR:-6}
+      # Game servers in AMP (Enshrouded). Use an AMP user that can only start/restart these.
+      TITAN_HANDS_AMP_URL: ${TITAN_HANDS_AMP_URL:-}
+      TITAN_HANDS_AMP_USER: ${TITAN_HANDS_AMP_USER:-}
+      TITAN_HANDS_AMP_PASSWORD: ${TITAN_HANDS_AMP_PASSWORD:-}
+      TITAN_HANDS_AMP_INSTANCES: ${TITAN_HANDS_AMP_INSTANCES:-}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
     networks: [titan_inside]
@@ -36,5 +42,4 @@ services:
 networks:
   ai_net:
     external: true
-  titan_inside:
-    internal: true
+  titan_inside: {}

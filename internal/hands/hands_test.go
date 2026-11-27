@@ -2,6 +2,7 @@ package hands
 
 import (
 	"context"
+	"github.com/wizard815/titan/internal/fakes"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -80,5 +81,48 @@ func TestHands_SplitLogs(t *testing.T) {
 	}
 	if got := splitLogs([]byte("plain tty\nline 2\n")); len(got) != 2 {
 		t.Fatalf("%q", got)
+	}
+}
+
+func TestHands_AMPStartRestartAndRelogin(t *testing.T) {
+	amp := fakes.NewAMP("titan", "pw", "Enshrouded01", "Valheim01")
+	amp.Running["Enshrouded01"] = false
+	as := httptest.NewServer(amp)
+	defer as.Close()
+	s := &Server{Token: "tok-0123456789abcdef", Rules: Rules{PerHour: 10, AMP: &AMPRules{URL: as.URL, User: "titan", Password: "pw", Instances: ParseInstances("enshrouded01")}}}
+	srv := httptest.NewServer(s.Handler())
+	defer srv.Close()
+	c := &Client{URL: srv.URL, Token: "tok-0123456789abcdef"}
+	ctx := context.Background()
+
+	rep, err := c.Do(ctx, OpAMPState, "Enshrouded01")
+	if err != nil || rep.AMP == nil || rep.AMP.Running || rep.AMP.Ready {
+		t.Fatalf("stopped instance: %+v %v", rep, err)
+	}
+	if _, err := c.Do(ctx, OpAMPStart, "Valheim01"); err == nil || !strings.Contains(err.Error(), "isn't on titan-hands' list of AMP") {
+		t.Fatalf("Valheim isn't allowed: %v", err)
+	}
+	if rep, err = c.Do(ctx, OpAMPStart, "Enshrouded01"); err != nil || !strings.Contains(rep.Message, "starting") {
+		t.Fatalf("start: %+v %v", rep, err)
+	}
+	amp.Players["Enshrouded01"] = 3
+	amp.Expire() // AMP logs titan-hands out; it should log in again by itself
+	if rep, err = c.Do(ctx, OpAMPState, "Enshrouded01"); err != nil || !rep.AMP.Ready || rep.AMP.Players != 3 || rep.AMP.MaxPlayers != 16 {
+		t.Fatalf("ready with players: %+v %v", rep.AMP, err)
+	}
+	if _, err = c.Do(ctx, OpAMPRestart, "enshrouded01"); err != nil {
+		t.Fatalf("restart: %v", err)
+	}
+	got := strings.Join(amp.Got(), "|")
+	if !strings.Contains(got, "ADSModule/StartInstance Enshrouded01") || !strings.Contains(got, "Core/Restart Enshrouded01") {
+		t.Fatalf("AMP calls: %s", got)
+	}
+	if strings.Contains(got, "Valheim01") {
+		t.Fatal("Valheim was touched")
+	}
+
+	bad := &Server{Token: "tok-0123456789abcdef", Rules: Rules{AMP: &AMPRules{URL: as.URL, User: "titan", Password: "nope", Instances: ParseInstances("Enshrouded01")}}}
+	if rep, _ := bad.Do(ctx, Request{Op: OpAMPState, Target: "Enshrouded01"}); !strings.Contains(rep.Message, "refused titan-hands' login") {
+		t.Fatalf("bad login: %+v", rep)
 	}
 }

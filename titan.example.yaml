@@ -41,15 +41,17 @@ limits:
 # Container names below are from Wizard's Unraid list (2026-11-27); every one
 # you allow fixes for must also be in TITAN_HANDS_CONTAINERS.
 services:
-  # Games. Enshrouded runs inside AMP: restarting the AMP container would stop
-  # every instance, so for now it's watched only (AMP instance control is planned).
-  - id: amp
-    name: Game servers (AMP)
+  # Games. Enshrouded runs inside AMP: titan-hands starts and restarts the
+  # one instance through AMP's API, never the AMP container (that would stop
+  # every game). Use your instance's name from AMP.
+  - id: enshrouded
+    name: Enshrouded
     group: Games
-    about: Runs the Enshrouded server.
+    about: Ask here if you can't join.
     audience: friends
-    container: AMP
-    check: {container: true}
+    amp: Enshrouded01
+    check: {amp: true}
+    actions: [start_service, restart_service]
 
   - id: plex
     name: Plex
@@ -59,6 +61,12 @@ services:
     check: {container: true}
     actions: [restart_service]
     fix_by: family
+    depends_on: [tunnel]      # from outside, Plex is down whenever the tunnel is
+    info:
+      - tautulli: {url: http://tautulli:8181, key_env: TAUTULLI_API_KEY}
+      - seerr: {url: http://Seerr:5055, key_env: SEERR_API_KEY, label: Requests}
+      - arr: {url: http://binhex-sonarr:8989, key_env: SONARR_API_KEY, label: TV downloads}
+      - arr: {url: http://binhex-radarr:7878, key_env: RADARR_API_KEY, label: Movie downloads}
 
   - id: seerr
     name: Requests (Seerr)
@@ -74,6 +82,7 @@ services:
     audience: family
     container: faith
     check: {http: http://faith:8097/health}
+    depends_on: [argos]        # FAITH can't think without Argos
     actions: [restart_service, recent_problems]
 
   - id: wiki
@@ -112,10 +121,13 @@ services:
   #   actions: [run_sync]
 
   - id: argos
-    name: Argos
+    name: The AI (Argos)
     group: Homelab
-    audience: owner
+    audience: family
+    fix_by: owner
     check: {http: http://argos:8080/health}
+    info:
+      - argos: {url: http://argos:8080}   # which models are loaded (Argos's /running)
 
   - id: tunnel
     name: Outside access (Cloudflare tunnel)

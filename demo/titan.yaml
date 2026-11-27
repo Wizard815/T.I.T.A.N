@@ -6,6 +6,19 @@ kuma: {url: http://127.0.0.1:9900/kuma, slug: home, import_all: true, audience: 
 check_every: 15s
 services:
   - {id: minecraft, name: Minecraft, group: Games, about: "The family world. Ask here if you can't join.", audience: friends, container: minecraft, check: {container: true}, actions: [start_service, restart_service, recent_problems]}
+  - {id: enshrouded, name: Enshrouded, group: Games, about: "Runs in AMP.", audience: friends, amp: Enshrouded01, check: {amp: true}, actions: [start_service, restart_service]}
+  - {id: tunnel, name: Outside access, group: Homelab, audience: owner, container: cloudflared, check: {container: true}, actions: [restart_service]}
+  - id: plex
+    name: Plex
+    group: Media
+    audience: friends
+    depends_on: [tunnel]
+    check: {http: "http://127.0.0.1:9900/plex/identity"}
+    info:
+      - tautulli: {url: "http://127.0.0.1:9900/tautulli"}
+      - seerr: {url: "http://127.0.0.1:9900/seerr", label: Requests}
+      - arr: {url: "http://127.0.0.1:9900/sonarr", label: TV downloads}
+  - {id: argos, name: Argos, group: Homelab, audience: family, check: {http: "http://127.0.0.1:9900/argos/running"}, info: [{argos: {url: "http://127.0.0.1:9900/argos", label: The AI}}]}
   - {id: valheim, name: Valheim, group: Games, audience: friends, container: valheim, check: {container: true}, actions: [restart_service]}
   - {id: faith, name: FAITH, group: Family, about: The family assistant., audience: family, container: faith, check: {http: "http://127.0.0.1:9900/faith/health"}, actions: [restart_service, recent_problems]}
   - {id: dnd-sync, name: DnD sync, group: Family, about: Campaign notes into the wiki., audience: family, sync: dnd, check: {freshness: {url: "http://127.0.0.1:9900/dnd/status", field: last_sync, max_age: 6h}}, actions: [run_sync]}

@@ -52,3 +52,21 @@ services:
 		}
 	}
 }
+
+func TestConfig_DependsOnAndInfo(t *testing.T) {
+	for _, tc := range []struct{ y, want string }{
+		{"services: [{id: a, check: {http: x}, depends_on: [nope]}]", "isn't a listed service"},
+		{"services: [{id: a, check: {http: x}, depends_on: [b]}, {id: b, check: {http: x}, depends_on: [a]}]", "circle"},
+		{"services: [{id: a, check: {http: x}, info: [{}]}]", "exactly one of"},
+		{"services: [{id: a, check: {http: x}, info: [{json: {url: u}}]}]", "json needs"},
+		{"services: [{id: a, check: {amp: true}}]", "needs amp:"},
+		{"services: [{id: a, amp: E1, check: {amp: true}, actions: [recent_problems]}]", "needs container"},
+	} {
+		if _, err := Parse([]byte(tc.y)); err == nil || !strings.Contains(err.Error(), tc.want) {
+			t.Errorf("%s: got %v", tc.y, err)
+		}
+	}
+	if _, err := Parse([]byte("services: [{id: g, amp: Enshrouded01, check: {amp: true}, actions: [start_service, restart_service]}]")); err != nil {
+		t.Fatal(err)
+	}
+}

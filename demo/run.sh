@@ -10,7 +10,8 @@ go build -o "$tmp/" ./cmd/titan ./cmd/titan-hands ./demo/fakeworld
 "$tmp/fakeworld" -addr 127.0.0.1:9900 -sock "$tmp/docker.sock" &
 sleep 0.5
 TITAN_HANDS_TOKEN=demo-hands-token-0123 TITAN_HANDS_ADDR=127.0.0.1:9911 DOCKER_SOCK="$tmp/docker.sock" \
-  TITAN_HANDS_CONTAINERS="minecraft valheim:restart faith:restart:logs hermes-sam:restart" \
+  TITAN_HANDS_CONTAINERS="minecraft valheim:restart faith:restart:logs hermes-sam:restart cloudflared:restart" \
+  TITAN_HANDS_AMP_URL=http://127.0.0.1:9901 TITAN_HANDS_AMP_USER=titan TITAN_HANDS_AMP_PASSWORD=demo-amp TITAN_HANDS_AMP_INSTANCES=Enshrouded01 \
   TITAN_HANDS_SYNCS="dnd=http://127.0.0.1:9900/dnd/sync" "$tmp/titan-hands" &
 export TITAN_CONFIG=demo/titan.yaml TITAN_DATA="$tmp/titan.db" TITAN_HANDS_TOKEN=demo-hands-token-0123
 for u in "wizard owner" "sam family" "alex friend"; do

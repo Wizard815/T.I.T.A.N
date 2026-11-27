@@ -42,10 +42,11 @@ type Request struct {
 }
 
 type Reply struct {
-	OK      bool     `json:"ok"`
-	Message string   `json:"message"`
-	State   *State   `json:"state,omitempty"`
-	Lines   []string `json:"lines,omitempty"`
+	OK      bool      `json:"ok"`
+	Message string    `json:"message"`
+	State   *State    `json:"state,omitempty"`
+	Lines   []string  `json:"lines,omitempty"`
+	AMP     *AMPState `json:"amp,omitempty"`
 }
 
 type State struct {
@@ -61,6 +62,7 @@ type Rules struct {
 	Containers map[string]map[string]bool // name -> allowed ops
 	Syncs      map[string]string          // job -> URL to POST
 	PerHour    int                        // changing ops per target per hour
+	AMP        *AMPRules                  // game servers in AMP; nil = off
 }
 
 // ParseContainers reads "faith:restart:logs minecraft" (space or comma
@@ -118,6 +120,7 @@ type Server struct {
 
 	mu   sync.Mutex
 	done map[string][]time.Time
+	ampc *ampClient
 }
 
 // DockerClient returns an HTTP client that dials the Docker socket.
@@ -161,6 +164,9 @@ func (s *Server) do(w http.ResponseWriter, r *http.Request) {
 
 // Do runs one operation after checking the allowlist and the limit.
 func (s *Server) Do(ctx context.Context, req Request) (Reply, int) {
+	if strings.HasPrefix(req.Op, "amp_") {
+		return s.amp(ctx, req)
+	}
 	if req.Op == OpSync {
 		u, ok := s.Rules.Syncs[req.Target]
 		if !ok {

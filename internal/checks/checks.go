@@ -96,9 +96,10 @@ type Runner struct {
 	// OnChange is called when a service goes up or down (not on its first check).
 	OnChange func(svc config.Service, r db.Result)
 
-	mu    sync.Mutex
-	last  map[string]db.Result
-	extra []config.Service // monitors imported from Kuma
+	mu      sync.Mutex
+	last    map[string]db.Result
+	factsBy map[string][]string
+	extra   []config.Service // monitors imported from Kuma
 }
 
 func (r *Runner) now() time.Time {
@@ -156,15 +157,40 @@ func (r *Runner) Round(ctx context.Context) {
 		}
 		r.importKuma(mons)
 	}
+	svcs := r.Services()
+	results := make([]db.Result, len(svcs))
 	var wg sync.WaitGroup
-	for _, s := range r.Services() {
+	for i, s := range svcs {
 		wg.Add(1)
-		go func(s config.Service) {
+		go func(i int, s config.Service) {
 			defer wg.Done()
-			r.record(ctx, s, r.check(ctx, s, mons, kumaErr))
-		}(s)
+			results[i] = r.check(ctx, s, mons, kumaErr)
+			var f []string
+			if len(s.Info) > 0 {
+				f = r.facts(ctx, s)
+			}
+			r.mu.Lock()
+			if r.factsBy == nil {
+				r.factsBy = map[string][]string{}
+			}
+			r.factsBy[s.ID] = f
+			r.mu.Unlock()
+		}(i, s)
 	}
 	wg.Wait()
+	// Save every result before telling anyone, so a service that went down
+	// with the thing it depends on is reported as the knock-on it is.
+	var changed []int
+	for i, s := range svcs {
+		if r.save(ctx, s, results[i]) {
+			changed = append(changed, i)
+		}
+	}
+	for _, i := range changed {
+		if r.OnChange != nil {
+			r.OnChange(svcs[i], results[i])
+		}
+	}
 }
 
 // CheckOne re-runs one service's check now (the check_now action).
@@ -205,19 +231,25 @@ func (r *Runner) importKuma(mons map[string]Monitor) {
 }
 
 func (r *Runner) record(ctx context.Context, s config.Service, res db.Result) {
+	if r.save(ctx, s, res) && r.OnChange != nil {
+		r.OnChange(s, res)
+	}
+}
+
+// save stores a result and reports whether the service went up or down
+// (not on its first check).
+func (r *Runner) save(ctx context.Context, s config.Service, res db.Result) bool {
 	if err := r.DB.AddResult(ctx, s.ID, res); err != nil {
 		slog.Warn("save result", "service", s.ID, "err", err)
 	}
 	r.mu.Lock()
+	defer r.mu.Unlock()
 	if r.last == nil {
 		r.last = map[string]db.Result{}
 	}
 	prev, had := r.last[s.ID]
 	r.last[s.ID] = res
-	r.mu.Unlock()
-	if had && prev.OK != res.OK && r.OnChange != nil {
-		r.OnChange(s, res)
-	}
+	return had && prev.OK != res.OK
 }
 
 func (r *Runner) check(ctx context.Context, s config.Service, mons map[string]Monitor, kumaErr error) db.Result {
@@ -265,6 +297,29 @@ func (r *Runner) check(ctx context.Context, s config.Service, mons map[string]Mo
 		d := "Running for " + Ago(r.now().Sub(st.Started))
 		if st.Restarts > 0 {
 			d += fmt.Sprintf(", restarted %d times", st.Restarts)
+		}
+		return done(true, d)
+	case c.AMP:
+		rep, err := r.Hands.Do(ctx, hands.OpAMPState, s.AMP)
+		if err != nil {
+			return done(false, err.Error())
+		}
+		st := rep.AMP
+		if st == nil {
+			return done(false, "AMP gave no status")
+		}
+		if !st.Running {
+			return done(false, "Off (the AMP instance isn't running)")
+		}
+		if !st.Ready {
+			return done(false, "Game is "+strings.ToLower(st.State))
+		}
+		d := "Ready"
+		if st.MaxPlayers > 0 {
+			d += fmt.Sprintf(", %d of %d players on", st.Players, st.MaxPlayers)
+		}
+		if st.Uptime != "" {
+			d += ", up " + st.Uptime
 		}
 		return done(true, d)
 	case c.Kuma != "":

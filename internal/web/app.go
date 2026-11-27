@@ -75,8 +75,10 @@ type Card struct {
 	Detail    string             `json:"detail"`
 	CheckedAt int64              `json:"checked_at,omitempty"`
 	MS        int64              `json:"ms,omitempty"`
-	Uptime    map[string]float64 `json:"uptime"` // "24h", "7d", "30d": 0-100, or -1
-	Beats     []int              `json:"beats"`  // newest last: 1 up, 0 down
+	Uptime    map[string]float64 `json:"uptime"`          // "24h", "7d", "30d": 0-100, or -1
+	Beats     []int              `json:"beats"`           // newest last: 1 up, 0 down
+	Info      []string           `json:"info"`            // extra facts ("2 people watching")
+	Cause     string             `json:"cause,omitempty"` // down because this service is down
 	Actions   []ActionView       `json:"actions"`
 }
 
@@ -92,7 +94,10 @@ func (a *App) Board(ctx context.Context, u agent.User) ([]Card, error) {
 		if !s.Visible(u.Role, u.Name) {
 			continue
 		}
-		c := Card{ID: s.ID, Name: s.Name, Group: s.Group, About: s.About, Personal: s.Person != "", Status: "pending", Detail: "Not checked yet", Uptime: map[string]float64{}, Beats: []int{}}
+		c := Card{ID: s.ID, Name: s.Name, Group: s.Group, About: s.About, Personal: s.Person != "", Status: "pending", Detail: "Not checked yet", Uptime: map[string]float64{}, Beats: []int{}, Info: a.Runner.Facts(s.ID)}
+		if c.Info == nil {
+			c.Info = []string{}
+		}
 		recent, err := a.DB.Recent(ctx, s.ID, 40)
 		if err != nil {
 			return nil, err
@@ -103,6 +108,9 @@ func (a *App) Board(ctx context.Context, u agent.User) ([]Card, error) {
 		if n := len(recent); n > 0 {
 			last := recent[n-1]
 			c.Status, c.Detail, c.CheckedAt, c.MS = map[bool]string{true: "up", false: "down"}[last.OK], last.Detail, last.At, last.MS
+			if !last.OK {
+				c.Cause = a.Runner.Cause(s)
+			}
 		}
 		for k, d := range map[string]time.Duration{"24h": 24 * time.Hour, "7d": 7 * 24 * time.Hour, "30d": 30 * 24 * time.Hour} {
 			up, err := a.DB.Uptime(ctx, s.ID, now.Add(-d))
@@ -156,11 +164,13 @@ func (a *App) Status(ctx context.Context, u agent.User) (string, error) {
 		Detail  string   `json:"detail"`
 		Checked string   `json:"checked,omitempty"`
 		Up24h   float64  `json:"uptime_24h_percent"`
+		Info    []string `json:"info,omitempty"`
+		Cause   string   `json:"down_because_this_is_down,omitempty"`
 		Fixes   []string `json:"fixes_allowed"`
 	}
 	rows := []row{}
 	for _, c := range cards {
-		r := row{ID: c.ID, Name: c.Name, Status: c.Status, Detail: c.Detail, Up24h: c.Uptime["24h"], Fixes: []string{}}
+		r := row{ID: c.ID, Name: c.Name, Status: c.Status, Detail: c.Detail, Up24h: c.Uptime["24h"], Info: c.Info, Cause: c.Cause, Fixes: []string{}}
 		if c.CheckedAt > 0 {
 			r.Checked = checks.Ago(time.Since(time.Unix(c.CheckedAt, 0))) + " ago"
 		}
@@ -352,7 +362,12 @@ func (a *App) run(ctx context.Context, s config.Service, action string) (string,
 		return map[bool]string{true: s.Name + " is up: ", false: s.Name + " is down: "}[r.OK] + r.Detail, nil
 	case config.ActStart, config.ActRestart:
 		op := map[string]string{config.ActStart: hands.OpStart, config.ActRestart: hands.OpRestart}[action]
-		rep, err := a.Hands.Do(ctx, op, s.Container)
+		target := s.Container
+		if s.AMP != "" { // a game in AMP: work on the instance, never the AMP container
+			op = map[string]string{config.ActStart: hands.OpAMPStart, config.ActRestart: hands.OpAMPRestart}[action]
+			target = s.AMP
+		}
+		rep, err := a.Hands.Do(ctx, op, target)
 		if err != nil {
 			return "", err
 		}
@@ -391,8 +406,13 @@ func (a *App) Wait() { a.wg.Wait() }
 // OnChange is the runner's hook: log the change, tell the owner when down.
 func (a *App) OnChange(s config.Service, r db.Result) {
 	ctx := context.Background()
-	a.event(ctx, "state", map[string]any{"service": s.ID, "name": s.Name, "ok": r.OK, "detail": r.Detail})
+	cause := ""
 	if !r.OK {
+		cause = a.Runner.Cause(s)
+	}
+	a.event(ctx, "state", map[string]any{"service": s.ID, "name": s.Name, "ok": r.OK, "detail": r.Detail, "cause": cause})
+	// Only the root problem goes to the inbox, not every service behind it.
+	if !r.OK && cause == "" {
 		a.note(ctx, "down", "titan", s.Name+" is down: "+r.Detail)
 	}
 }

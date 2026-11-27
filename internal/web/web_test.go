@@ -21,6 +21,7 @@ import (
 	"github.com/wizard815/titan/internal/checks"
 	"github.com/wizard815/titan/internal/config"
 	"github.com/wizard815/titan/internal/db"
+	"github.com/wizard815/titan/internal/fakes"
 	"github.com/wizard815/titan/internal/hands"
 )
 
@@ -50,6 +51,26 @@ services:
     sync: dnd
     check: {freshness: {url: DNDSTATUS, field: last_sync, max_age: 6h}}
     actions: [run_sync]
+  - id: enshrouded
+    name: Enshrouded
+    group: Games
+    audience: friends
+    amp: Enshrouded01
+    check: {amp: true}
+    actions: [start_service, restart_service]
+  - id: tunnel
+    name: Outside access
+    audience: owner
+    container: cloudflared
+    check: {container: true}
+  - id: plex
+    name: Plex
+    group: Media
+    audience: friends
+    depends_on: [tunnel]
+    check: {http: PLEXHEALTH}
+    info:
+      - tautulli: {url: TAUTURL, key_env: TEST_TAUT_KEY}
   - id: sams-hermes
     name: Sam's Hermes
     audience: family
@@ -156,6 +177,8 @@ func (f *fakeDocker) got() []string {
 }
 
 type world struct {
+	amp    *fakes.AMP
+	plexUp *bool
 	t      *testing.T
 	app    *App
 	srv    *httptest.Server
@@ -190,15 +213,35 @@ func newWorld(t *testing.T) *world {
 		json.NewEncoder(rw).Encode(map[string]any{"last_sync": time.Now().Add(-30 * time.Hour).Format(time.RFC3339)})
 	})
 	misc.HandleFunc("/dnd/sync", func(rw http.ResponseWriter, r *http.Request) { syncs++ })
+	plexUp := false
+	w.plexUp = &plexUp
+	misc.HandleFunc("/plex", func(rw http.ResponseWriter, r *http.Request) {
+		if !plexUp {
+			rw.WriteHeader(502)
+		}
+	})
+	misc.HandleFunc("/tautulli/api/v2", func(rw http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Get("apikey") != "tk" || r.URL.Query().Get("cmd") != "get_activity" {
+			rw.WriteHeader(401)
+			return
+		}
+		rw.Write([]byte(`{"response":{"data":{"stream_count":"2","stream_count_transcode":1}}}`))
+	})
+	t.Setenv("TEST_TAUT_KEY", "tk")
+	w.amp = fakes.NewAMP("titan", "amp-pw", "Enshrouded01")
+	w.amp.Running["Enshrouded01"] = false
+	as := httptest.NewServer(w.amp)
+	t.Cleanup(as.Close)
 	ms := httptest.NewServer(misc)
 	t.Cleanup(ms.Close)
 
-	cs, _ := hands.ParseContainers("minecraft faith:restart:logs hermes-sam:restart")
-	hs := &hands.Server{Token: "hands-token-0123456789", Rules: hands.Rules{Containers: cs, Syncs: map[string]string{"dnd": ms.URL + "/dnd/sync"}, PerHour: 10}, Docker: hands.DockerClient(sock)}
+	cs, _ := hands.ParseContainers("minecraft faith:restart:logs hermes-sam:restart cloudflared:state")
+	hs := &hands.Server{Token: "hands-token-0123456789", Rules: hands.Rules{Containers: cs, Syncs: map[string]string{"dnd": ms.URL + "/dnd/sync"}, PerHour: 10,
+		AMP: &hands.AMPRules{URL: as.URL, User: "titan", Password: "amp-pw", Instances: hands.ParseInstances("Enshrouded01")}}, Docker: hands.DockerClient(sock)}
 	handsSrv := httptest.NewServer(hs.Handler())
 	t.Cleanup(handsSrv.Close)
 
-	y := strings.NewReplacer("ARGOS", argos.URL, "HANDS", handsSrv.URL, "FAITHHEALTH", ms.URL+"/faith/health", "DNDSTATUS", ms.URL+"/dnd/status").Replace(testConfig)
+	y := strings.NewReplacer("ARGOS", argos.URL, "HANDS", handsSrv.URL, "FAITHHEALTH", ms.URL+"/faith/health", "DNDSTATUS", ms.URL+"/dnd/status", "PLEXHEALTH", ms.URL+"/plex", "TAUTURL", ms.URL+"/tautulli").Replace(testConfig)
 	cfg, err := config.Parse([]byte(y))
 	if err != nil {
 		t.Fatal(err)
@@ -287,8 +330,8 @@ func actions(card map[string]any) []string {
 func TestTitan_BoardShowsEachRoleItsOwnSlice(t *testing.T) {
 	w := newWorld(t)
 	friend := w.login("alex").board()
-	if len(friend) != 1 || friend["minecraft"] == nil {
-		t.Fatalf("a friend should see only minecraft, got %v", keys(friend))
+	if len(friend) != 3 || friend["minecraft"] == nil || friend["enshrouded"] == nil || friend["plex"] == nil {
+		t.Fatalf("a friend should see minecraft, enshrouded and plex, got %v", keys(friend))
 	}
 	if got := actions(friend["minecraft"]); strings.Join(got, ",") != "check_now,start_service,restart_service" {
 		t.Fatalf("friend actions on minecraft: %v (no raw logs for friends)", got)
@@ -308,7 +351,7 @@ func TestTitan_BoardShowsEachRoleItsOwnSlice(t *testing.T) {
 		t.Fatalf("sam should see their own Hermes: %v", keys(sam))
 	}
 	owner := w.login("wizard").board()
-	if len(owner) != 4 || !contains(actions(owner["faith"]), "recent_problems") {
+	if len(owner) != 7 || !contains(actions(owner["faith"]), "recent_problems") {
 		t.Fatalf("owner sees all with logs: %v %v", keys(owner), actions(owner["faith"]))
 	}
 	_, me := w.login("alex").do("GET", "/api/me", nil)
@@ -576,7 +619,7 @@ func TestTitan_OwnerManagesPeople(t *testing.T) {
 	if code, _ := o.do("POST", "/api/owner/users", map[string]string{"name": "Jo", "role": "friend", "password": "password-jo"}); code != 200 {
 		t.Fatal("add jo")
 	}
-	if b := w.login("jo").board(); len(b) != 1 {
+	if b := w.login("jo").board(); len(b) != 3 {
 		t.Fatalf("jo is a friend: %v", keys(b))
 	}
 	if code, _ := o.do("POST", "/api/owner/users/wizard", map[string]string{"role": "family"}); code != 400 {
@@ -584,5 +627,69 @@ func TestTitan_OwnerManagesPeople(t *testing.T) {
 	}
 	if code, _ := o.do("DELETE", "/api/owner/users/jo", nil); code != 200 {
 		t.Fatal("remove jo")
+	}
+}
+
+func TestTitan_GameServerGoesThroughAMP(t *testing.T) {
+	w := newWorld(t)
+	c := w.login("alex")
+	card := c.board()["enshrouded"]
+	if card["status"] != "down" || card["detail"] != "Off (the AMP instance isn't running)" {
+		t.Fatalf("enshrouded should be down: %v", card)
+	}
+	_, p := c.do("POST", "/api/propose", map[string]string{"service": "enshrouded", "action": "start_service"})
+	if p["label"] != "Start Enshrouded" {
+		t.Fatalf("proposal: %v", p)
+	}
+	code, res := c.do("POST", "/api/proposals/"+p["id"].(string), map[string]bool{"yes": true})
+	if code != 200 || !strings.Contains(res["result"].(string), "starting") {
+		t.Fatalf("start: %d %v", code, res)
+	}
+	if got := strings.Join(w.amp.Got(), "|"); !strings.Contains(got, "StartInstance Enshrouded01") {
+		t.Fatalf("AMP calls: %s", got)
+	}
+	if d := w.docker.got(); len(d) != 0 {
+		t.Fatalf("the AMP container must never be restarted for one game: %v", d)
+	}
+	w.app.Wait()
+	if card = c.board()["enshrouded"]; card["status"] != "up" || card["detail"] != "Ready, 0 of 16 players on, up 02:14:00" {
+		t.Fatalf("after start: %v", card)
+	}
+}
+
+func TestTitan_DownBecauseOfAnotherService(t *testing.T) {
+	w := newWorld(t)
+	ctx := context.Background()
+	c := w.login("alex")
+	plex := c.board()["plex"]
+	if plex["cause"] != "Outside access" {
+		t.Fatalf("plex should be down because of the tunnel: %v", plex)
+	}
+	if info := plex["info"].([]any); len(info) != 1 || info[0] != "2 people watching (1 converting, which is harder on the server)" {
+		t.Fatalf("tautulli info: %v", plex["info"])
+	}
+	// Both come back, then both go down together: only the tunnel is reported.
+	w.docker.mu.Lock()
+	w.docker.running["cloudflared"] = true
+	w.docker.mu.Unlock()
+	*w.plexUp = true
+	w.app.Runner.Round(ctx)
+	if p := c.board()["plex"]; p["status"] != "up" || p["cause"] != nil {
+		t.Fatalf("plex up: %v", p)
+	}
+	w.docker.mu.Lock()
+	w.docker.running["cloudflared"] = false
+	w.docker.mu.Unlock()
+	*w.plexUp = false
+	w.app.Runner.Round(ctx)
+	notes, _ := w.app.DB.Notes(ctx)
+	var down []string
+	for _, n := range notes {
+		if n.Kind == "down" {
+			down = append(down, n.Text)
+		}
+	}
+	if len(down) != 1 || !strings.HasPrefix(down[0], "Outside access is down") {
+		t.Fatalf("only the root problem goes to the inbox: %v", down)
 	}
 }

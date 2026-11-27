@@ -99,7 +99,10 @@ type Service struct {
 	Person    string   `yaml:"person"`   // personal: only this account (and the owner) sees it
 	FixBy     string   `yaml:"fix_by"`   // who may ask for fixes; default = audience
 	Container string   `yaml:"container"`
-	Sync      string   `yaml:"sync"` // sync job name known to titan-hands
+	AMP       string   `yaml:"amp"`        // an AMP instance name (game servers); start/restart go through AMP, not Docker
+	Sync      string   `yaml:"sync"`       // sync job name known to titan-hands
+	DependsOn []string `yaml:"depends_on"` // service ids; when one is down, this card says so
+	Info      []Info   `yaml:"info"`       // extra facts shown on the card
 	Actions   []string `yaml:"actions"`
 	Check     Check    `yaml:"check"`
 }
@@ -109,6 +112,31 @@ type Check struct {
 	Container bool       `yaml:"container"` // the container is running
 	Kuma      string     `yaml:"kuma"`      // an Uptime Kuma monitor name
 	Freshness *Freshness `yaml:"freshness"` // a "last ran" time must be recent
+	AMP       bool       `yaml:"amp"`       // the AMP instance's game is running
+}
+
+// Info is one extra fact on a card. Give exactly one kind. Keys are read
+// from env vars named by key_env and never leave titan.
+type Info struct {
+	Tautulli *Source   `yaml:"tautulli"` // streams now (and how many transcode)
+	Seerr    *Source   `yaml:"seerr"`    // requests waiting and in progress
+	Arr      *Source   `yaml:"arr"`      // Sonarr/Radarr/Readarr download queue
+	Argos    *Source   `yaml:"argos"`    // which models are loaded
+	JSON     *JSONFact `yaml:"json"`     // any value from a JSON URL
+}
+
+type Source struct {
+	URL    string `yaml:"url"`
+	KeyEnv string `yaml:"key_env"`
+	Label  string `yaml:"label"`
+}
+
+type JSONFact struct {
+	URL       string `yaml:"url"`
+	Field     string `yaml:"field"` // dot path
+	Label     string `yaml:"label"`
+	Suffix    string `yaml:"suffix"`
+	HeaderEnv string `yaml:"header_env"` // "Name: value" in this env var, e.g. an API key header
 }
 
 // Freshness reads a JSON time from URL (Field is a dot path, e.g.
@@ -254,6 +282,12 @@ func Parse(b []byte) (*Config, error) {
 		if s.Check.Kuma != "" {
 			n++
 		}
+		if s.Check.AMP {
+			n++
+			if s.AMP == "" {
+				return nil, fmt.Errorf("service %s: an amp check needs amp: <instance name>", s.ID)
+			}
+		}
 		if s.Check.Freshness != nil {
 			n++
 			f := s.Check.Freshness
@@ -262,7 +296,7 @@ func Parse(b []byte) (*Config, error) {
 			}
 		}
 		if n != 1 {
-			return nil, fmt.Errorf("service %s: give exactly one check (http, container, kuma or freshness)", s.ID)
+			return nil, fmt.Errorf("service %s: give exactly one check (http, container, kuma, freshness or amp)", s.ID)
 		}
 		if s.Check.Container && s.Container == "" {
 			return nil, fmt.Errorf("service %s: a container check needs container: <name>", s.ID)
@@ -271,15 +305,62 @@ func Parse(b []byte) (*Config, error) {
 			if !knownAction[a] {
 				return nil, fmt.Errorf("service %s: %q isn't a T.I.T.A.N action (use check_now, start_service, restart_service, run_sync, recent_problems)", s.ID, a)
 			}
-			if (a == ActStart || a == ActRestart || a == ActLogs) && s.Container == "" {
+			if (a == ActStart || a == ActRestart) && s.Container == "" && s.AMP == "" {
+				return nil, fmt.Errorf("service %s: %s needs container: <name> or amp: <instance>", s.ID, a)
+			}
+			if a == ActLogs && s.Container == "" {
 				return nil, fmt.Errorf("service %s: %s needs container: <name>", s.ID, a)
 			}
 			if a == ActSync && s.Sync == "" {
 				return nil, fmt.Errorf("service %s: run_sync needs sync: <job name>", s.ID)
 			}
 		}
+		for i, in := range s.Info {
+			k := 0
+			for _, src := range []*Source{in.Tautulli, in.Seerr, in.Arr, in.Argos} {
+				if src != nil {
+					k++
+					if src.URL == "" {
+						return nil, fmt.Errorf("service %s: info[%d] needs a url", s.ID, i)
+					}
+				}
+			}
+			if in.JSON != nil {
+				k++
+				if in.JSON.URL == "" || in.JSON.Field == "" || in.JSON.Label == "" {
+					return nil, fmt.Errorf("service %s: info[%d] json needs url, field and label", s.ID, i)
+				}
+			}
+			if k != 1 {
+				return nil, fmt.Errorf("service %s: info[%d] needs exactly one of tautulli, seerr, arr, argos or json", s.ID, i)
+			}
+		}
+	}
+	for _, s := range c.Services {
+		for _, d := range s.DependsOn {
+			if c.Find(d) == nil {
+				return nil, fmt.Errorf("service %s: depends_on %q isn't a listed service", s.ID, d)
+			}
+		}
+		if c.cycle(s.ID, map[string]bool{}) {
+			return nil, fmt.Errorf("service %s: depends_on goes round in a circle", s.ID)
+		}
 	}
 	return &c, nil
+}
+
+func (c *Config) cycle(id string, path map[string]bool) bool {
+	if path[id] {
+		return true
+	}
+	path[id] = true
+	defer delete(path, id)
+	for _, d := range c.Find(id).DependsOn {
+		if c.cycle(d, path) {
+			return true
+		}
+	}
+	return false
 }
 
 // Find returns the service with this id.

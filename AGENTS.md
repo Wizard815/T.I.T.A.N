@@ -5,10 +5,11 @@ T.I.T.A.N is a status board and help desk for Wizard's friends and family. Go 1.
 | Path | What |
 |---|---|
 | `cmd/titan` | board, login, chat, Overseer feed |
-| `cmd/titan-hands` | the only process with the Docker socket; named operations from its own allowlist |
+| `cmd/titan-hands` | the only process with the Docker socket and the AMP login; named operations from its own allowlist |
 | `internal/agent` | guard model, helper model with fallback, the code screen |
 | `internal/checks` | http, container, Uptime Kuma and freshness checks; uptime |
 | `internal/web` | routes, roles, fixes, owner pages |
+| `internal/fakes` | stand-ins (AMP) shared by tests and the demo |
 | `demo/` | `demo/run.sh` runs everything against `demo/fakeworld` |
 
 ## Rules

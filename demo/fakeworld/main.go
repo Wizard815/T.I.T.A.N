@@ -17,17 +17,20 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/wizard815/titan/internal/fakes"
 )
 
 var (
 	mu      sync.Mutex
-	running = map[string]bool{"faith": true, "minecraft": false, "valheim": true, "hermes-sam": true}
+	running = map[string]bool{"faith": true, "minecraft": false, "valheim": true, "hermes-sam": true, "cloudflared": false}
 	synced  = time.Now().Add(-30 * time.Hour)
 )
 
 func main() {
 	addr := flag.String("addr", ":9900", "HTTP address for Argos, Kuma, FAITH and the sync job")
 	sock := flag.String("sock", "/tmp/fake-docker.sock", "unix socket that acts as Docker")
+	flag.String("amp", "127.0.0.1:9901", "address for the fake AMP")
 	flag.Parse()
 
 	os.Remove(*sock)
@@ -37,7 +40,30 @@ func main() {
 	}
 	go http.Serve(ln, http.HandlerFunc(docker))
 
+	amp := fakes.NewAMP("titan", "demo-amp", "Enshrouded01")
+	amp.Running["Enshrouded01"] = false
+	ampAddr := flag.Lookup("amp").Value.String()
+	go func() { log.Fatal(http.ListenAndServe(ampAddr, amp)) }()
+
 	m := http.NewServeMux()
+	m.HandleFunc("GET /tautulli/api/v2", func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(`{"response":{"data":{"stream_count":"2","stream_count_transcode":1}}}`))
+	})
+	m.HandleFunc("GET /seerr/api/v1/request/count", func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(`{"pending":1,"processing":2}`))
+	})
+	m.HandleFunc("GET /sonarr/api/v3/queue", func(w http.ResponseWriter, r *http.Request) { w.Write([]byte(`{"totalRecords":3}`)) })
+	m.HandleFunc("GET /argos/running", func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(`{"running":[{"model":"qwen3-8b","state":"ready"}]}`))
+	})
+	m.HandleFunc("GET /plex/identity", func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		up := running["cloudflared"]
+		mu.Unlock()
+		if !up {
+			w.WriteHeader(502)
+		}
+	})
 	m.HandleFunc("POST /v1/chat/completions", argos)
 	m.HandleFunc("GET /kuma/api/status-page/home", func(w http.ResponseWriter, r *http.Request) {
 		j(w, map[string]any{"publicGroupList": []any{map[string]any{"name": "Media", "monitorList": []any{map[string]any{"id": 1, "name": "Jellyfin"}, map[string]any{"id": 2, "name": "Immich"}}}}})

@@ -56,6 +56,9 @@
   .badge { font-size:.78rem; padding:1px 8px; border-radius:99px; border:1px solid currentColor; white-space:nowrap; }
   .badge.up { color:var(--good); } .badge.down { color:var(--bad); } .badge.pending { color:var(--muted); }
   .svc .detail { font-size:.88rem; }
+  .svc .cause { color:var(--warn); font-size:.86rem; } .svc .cause::before { content:"↳ "; }
+  .svc.knock { border-left-color:var(--warn); }
+  .facts { margin:0; padding-left:16px; font-size:.84rem; } .facts li { margin:0; }
   .svc .about, .svc .when { color:var(--muted); font-size:.8rem; }
   .beats { display:flex; gap:2px; height:18px; align-items:stretch; }
   .beats i { flex:1; border-radius:2px; background:var(--good); min-width:3px; }
@@ -202,10 +205,11 @@ const words = { up: 'Up', down: 'Down', pending: 'Waiting' };
 async function loadBoard() {
   let data;
   try { data = await api('/api/board'); } catch (e) { $('summary').replaceChildren(el('span', { class: 'msg bad' }, e.message)); return; }
-  const s = data.services, up = s.filter(x => x.status === 'up').length, down = s.filter(x => x.status === 'down').length;
+  const s = data.services, up = s.filter(x => x.status === 'up').length, down = s.filter(x => x.status === 'down' && !x.cause).length, knock = s.filter(x => x.cause).length;
   $('summary').replaceChildren(
     el('span', { class: 'pill up' }, up + ' up'),
     el('span', { class: 'pill' + (down ? ' down' : '') }, down + ' down'),
+    knock ? el('span', { class: 'pill' }, knock + ' down because of those') : null,
     el('span', { class: 'pill' }, s.length + ' services'));
   const groups = {};
   for (const c of s) (groups[c.group] ||= []).push(c);
@@ -224,10 +228,12 @@ function card(c) {
   for (const b of c.beats) beats.append(el('i', { class: b ? '' : 'd' }));
   const box = el('div', { class: 'acts' });
   for (const a of c.actions) box.append(el('button', { class: 'quiet small', onclick: () => act(c, a, box) }, a.label));
-  return el('article', { class: 'svc ' + c.status, 'aria-label': c.name + ': ' + words[c.status] },
+  return el('article', { class: 'svc ' + c.status + (c.cause ? ' knock' : ''), 'aria-label': c.name + ': ' + words[c.status] + (c.cause ? ', because ' + c.cause + ' is down' : '') },
     el('div', { class: 'name' }, el('b', {}, c.name + (c.personal ? ' (yours)' : '')), el('span', { class: 'badge ' + c.status }, words[c.status])),
     c.about ? el('div', { class: 'about' }, c.about) : null,
     el('div', { class: 'detail' }, c.detail),
+    c.cause ? el('div', { class: 'cause' }, 'Because ' + c.cause + ' is down') : null,
+    c.info.length ? el('ul', { class: 'facts' }, ...c.info.map(f => el('li', {}, f))) : null,
     beats,
     el('div', { class: 'ups' }, el('span', {}, '24h ', el('b', {}, pct(c.uptime['24h']))), el('span', {}, '7d ', el('b', {}, pct(c.uptime['7d']))), el('span', {}, '30d ', el('b', {}, pct(c.uptime['30d']))), c.ms ? el('span', {}, c.ms + ' ms') : null),
     c.checked_at ? el('div', { class: 'when' }, 'Checked ' + ago(c.checked_at)) : null,

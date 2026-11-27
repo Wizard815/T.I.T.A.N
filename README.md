@@ -16,6 +16,14 @@ It's like Uptime Kuma, but it shows more on each card. It also has a chat that c
 
 ![A friend asks to delete / and for a password; both are refused](docs/images/refused.png)
 
+## More than up or down
+
+- **Game servers in AMP:** Enshrouded shows "Ready, 2 of 16 players on". Friends can start or restart that one game, not the AMP container.
+- **Card info:** Plex streams (Tautulli), requests (Seerr), download queues (*arr), which AI model is loaded (Argos), or any number from a JSON URL.
+- **Root causes:** when the Cloudflare tunnel is down, Plex's card says "Because Outside access is down", and only the tunnel goes to Wizard's inbox.
+
+![A friend starts Enshrouded through AMP; Plex is down because the tunnel is](docs/images/amp-and-root-cause.png)
+
 ## Who sees what
 
 | Role | Sees | Can fix |
@@ -47,7 +55,8 @@ Open http://127.0.0.1:9910 and sign in as `wizard`, `sam` (family) or `alex` (fr
 ## More
 
 - [docs/models.md](docs/models.md): picking the guard, helper and fallback in Argos (local or cloud)
-- [docs/actions.md](docs/actions.md): the fixes, titan-hands' allowlist, and adding a service
+- [docs/actions.md](docs/actions.md): the fixes, AMP game servers, titan-hands' allowlist, and adding a service
+- [docs/cards.md](docs/cards.md): extra card info and "down because of something else"
 - [docs/overseer.md](docs/overseer.md): the event feed Overseer reads for training data
 
 `go test ./...` runs the tests against fakes. MIT licensed.

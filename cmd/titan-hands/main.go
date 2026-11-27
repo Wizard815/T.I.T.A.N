@@ -6,6 +6,9 @@
 //	TITAN_HANDS_CONTAINERS  "faith:restart:logs minecraft" (a bare name allows start, restart and logs)
 //	TITAN_HANDS_SYNCS       "dnd=http://host/sync wiki=http://host/pull"
 //	TITAN_HANDS_PER_HOUR    changing operations per target per hour (default 6)
+//	TITAN_HANDS_AMP_URL     AMP's address, e.g. http://AMP:8080 (game servers)
+//	TITAN_HANDS_AMP_USER, TITAN_HANDS_AMP_PASSWORD   an AMP user that may start and restart those instances
+//	TITAN_HANDS_AMP_INSTANCES  "Enshrouded01" (instance or friendly names)
 //	DOCKER_SOCK             default /var/run/docker.sock
 //	TITAN_HANDS_ADDR        default :8111
 package main
@@ -43,12 +46,19 @@ func main() {
 	if addr == "" {
 		addr = ":8111"
 	}
-	s := &hands.Server{Token: tok, Rules: hands.Rules{Containers: cs, Syncs: ss, PerHour: per}, Docker: hands.DockerClient(sock), HTTP: &http.Client{Timeout: 60 * time.Second}}
+	var amp *hands.AMPRules
+	if u := os.Getenv("TITAN_HANDS_AMP_URL"); u != "" {
+		amp = &hands.AMPRules{URL: u, User: os.Getenv("TITAN_HANDS_AMP_USER"), Password: os.Getenv("TITAN_HANDS_AMP_PASSWORD"), Instances: hands.ParseInstances(os.Getenv("TITAN_HANDS_AMP_INSTANCES"))}
+		if amp.User == "" || amp.Password == "" {
+			fail("TITAN_HANDS_AMP_URL is set, so TITAN_HANDS_AMP_USER and TITAN_HANDS_AMP_PASSWORD are needed too")
+		}
+	}
+	s := &hands.Server{Token: tok, Rules: hands.Rules{Containers: cs, Syncs: ss, PerHour: per, AMP: amp}, Docker: hands.DockerClient(sock), HTTP: &http.Client{Timeout: 60 * time.Second}}
 	names := make([]string, 0, len(cs))
 	for n := range cs {
 		names = append(names, n)
 	}
-	slog.Info("titan-hands is up", "addr", addr, "containers", names, "syncs", len(ss))
+	slog.Info("titan-hands is up", "addr", addr, "containers", names, "syncs", len(ss), "amp", amp != nil)
 	srv := &http.Server{Addr: addr, Handler: s.Handler(), ReadHeaderTimeout: 10 * time.Second}
 	if err := srv.ListenAndServe(); err != nil {
 		fail(err.Error())
