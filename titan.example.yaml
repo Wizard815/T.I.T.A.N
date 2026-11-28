@@ -28,6 +28,11 @@ hands:
 
 notify:
   ntfy_url: ""              # e.g. http://odysseus-ntfy-1/titan (your Odysseus ntfy) for a ping when something needs you
+  # Hermes hears about incidents (needs_owner, self_fix, back_up); see docs/hermes.md
+  # hook: {url: http://hermes:8644/webhooks/titan, secret_env: TITAN_HERMES_SECRET}
+
+# Who sees the server panel (CPU, memory, disks, GPUs): owner, family, friends or off.
+server_view: owner
 
 faith_url: http://192.168.20.5:8097   # "Ask FAITH" link for family (guess at the Unraid IP)
 

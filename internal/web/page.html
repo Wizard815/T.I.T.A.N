@@ -51,6 +51,15 @@
   /* 2. chat, the top third */
   .chat { height:33vh; min-height:240px; display:flex; flex-direction:column; border-bottom:1px solid var(--line); background:var(--card); }
   .chat .wrap { flex:1; display:flex; flex-direction:column; min-height:0; width:100%; padding-top:8px; padding-bottom:8px; gap:8px; }
+  .melog { flex:1; display:flex; gap:8px; min-height:0; }
+  .srv { width:230px; flex:none; align-self:flex-start; background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:6px 8px; font-size:.72rem; font-variant-numeric:tabular-nums; }
+  .srv h3 { margin:0 0 4px; font-size:.68rem; color:var(--muted); text-transform:uppercase; letter-spacing:.1em; display:flex; justify-content:space-between; font-weight:400; }
+  .srv .m { display:grid; grid-template-columns:44px 1fr 58px; gap:6px; align-items:center; margin:2px 0; }
+  .srv .m span:first-child { color:var(--muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .srv .m span:last-child { text-align:right; }
+  .srv .bar { height:8px; background:var(--track); border-radius:2px; overflow:hidden; } .srv .bar i { display:block; height:100%; background:var(--good); }
+  .srv .bar i.w { background:var(--warn); } .srv .bar i.h { background:var(--bad); }
+  .srv .sub { color:var(--muted); font-size:.66rem; margin:-1px 0 3px 50px; }
   .log { flex:1; overflow-y:auto; display:flex; flex-direction:column; gap:6px; min-height:0; }
   .b { max-width:80%; padding:6px 10px; border-radius:10px; border:1px solid var(--line); white-space:pre-wrap; overflow-wrap:anywhere; }
   .b.me { align-self:flex-end; background:var(--panel); }
@@ -78,6 +87,7 @@
   @media (max-width:760px) {
     .panes { grid-template-columns:minmax(0,1fr); gap:0; } .tabs { display:flex; }
     .pane.off { display:none; } .pane h2 { display:none; }
+    .srv { display:none; }
     .chat .wrap { gap:6px; padding-top:6px; padding-bottom:6px; }
     .ask input { min-height:44px; } .ask button { min-width:64px; }
   }
@@ -96,7 +106,7 @@
   .st.up i { background:var(--good); } .st.down i { background:var(--bad); } .st.knock i { background:var(--warn); }
   .st.up { color:var(--good); } .st.down { color:var(--bad); } .st.knock { color:var(--warn); }
   .what b { color:var(--head); font-weight:600; } .what .d { color:var(--ink); font-size:.84rem; }
-  .what .x { color:var(--muted); font-size:.78rem; } .what .c { color:var(--warn); font-size:.8rem; } .what .w { color:var(--accent); font-size:.78rem; }
+  .what .x { color:var(--muted); font-size:.78rem; } .what .c { color:var(--warn); font-size:.8rem; } .what .w { color:var(--accent); font-size:.78rem; } .what .q { color:var(--muted); font-size:.78rem; }
   .beats { display:flex; gap:1px; height:14px; } .beats i { flex:1; background:var(--good); border-radius:1px; } .beats i.d { background:var(--bad); } .beats i.e { background:var(--track); }
   .beats i.m { position:relative; cursor:help; } .beats i.m::before { content:''; position:absolute; top:-5px; left:50%; width:5px; height:5px; margin-left:-2.5px; border-radius:50%; background:var(--accent); }
   .pct { font-size:.8rem; text-align:left; font-variant-numeric:tabular-nums; color:var(--muted); } .pct b { color:var(--ink); }
@@ -168,6 +178,7 @@
     <a id="faith" class="hidden" href="#" target="_blank" rel="noopener">Ask FAITH</a>
     <button class="quiet" data-view="board" aria-current="page">Board</button>
     <button class="quiet hidden" data-view="owner" id="ownerTab">Owner</button>
+    <button class="quiet hidden" id="quietAll" title="Stop alerts and automatic fixes while you work on things">🤫 Quiet all</button>
     <button class="quiet" data-view="account">Account</button>
     <button class="quiet" id="signout">Sign out</button>
   </nav>
@@ -197,7 +208,10 @@
       <div class="panes">
         <div class="pane" id="paneMe">
           <h2><span>You and T.I.T.A.N</span><span>only you see this</span></h2>
-          <div class="log" id="log" role="log" aria-live="polite"></div>
+          <div class="melog">
+            <div class="log" id="log" role="log" aria-live="polite"></div>
+            <aside class="srv hidden" id="srv" aria-label="The server right now"></aside>
+          </div>
           <form class="ask" id="chatForm">
             <input id="chatText" maxlength="2000" autocomplete="off" aria-label="Message to T.I.T.A.N" placeholder="What's wrong? (the game server won't start)">
             <button type="submit" id="chatSend">Send</button>
@@ -298,7 +312,9 @@ function show(view) {
   document.querySelectorAll('nav [data-view]').forEach(b => { if (b.dataset.view === view) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current'); });
   clearInterval(timer);
   clearInterval(roomTimer);
-  if (view === 'board') { loadBoard(); timer = setInterval(loadBoard, 30000); loadRoom(); roomTimer = setInterval(loadRoom, 4000); }
+  clearInterval(srvTimer);
+  if (view === 'board') { loadBoard(); timer = setInterval(loadBoard, 30000); loadRoom(); roomTimer = setInterval(loadRoom, 4000);
+    if (me && me.server_view) { loadServer(); srvTimer = setInterval(loadServer, 5000); } }
   if (view === 'owner') loadOwner();
 }
 
@@ -311,12 +327,15 @@ async function loadBoard() {
   let data;
   try { data = await api('/api/board'); } catch (e) { $('groups').replaceChildren(el('p', { class: 'msg bad' }, e.message)); return; }
   cards = data.services;
+  const allQuiet = cards.some(c => c.quiet && c.quiet.service === '*');
+  $('quietAll').textContent = allQuiet ? '🔔 End quiet' : '🤫 Quiet all';
   const up = cards.filter(c => c.status === 'up').length, down = cards.filter(c => c.status === 'down' && !c.cause).length, knock = cards.filter(c => c.cause).length;
   const last = Math.max(0, ...cards.map(c => c.checked_at || 0));
   $('stats').replaceChildren(...[
     el('span', { class: 'pill up' }, up + ' up'),
     el('span', { class: 'pill' + (down ? ' down' : '') }, down + ' down'),
     knock ? el('span', { class: 'pill knock' }, knock + ' blocked by those') : null,
+    allQuiet ? el('span', { class: 'pill' }, '🤫 quiet') : null,
     last ? el('span', { class: 'pill' }, 'checked ' + ago(last)) : null].filter(Boolean));
   const groups = {};
   for (const c of cards) (groups[c.group] ||= []).push(c);
@@ -368,9 +387,13 @@ function row(c) {
   // A healthy card keeps its fixes behind "More": Restart on something that works is clutter.
   const btn = a => el('button', { class: 'quiet', onclick: () => act(c, a, msg) }, ...(a.label === 'Check again' ? two('Check again', 'Check') : [a.label]));
   const extra = c.actions.filter(a => a.action !== 'check_now');
+  const owner = me && me.role === 'owner';
+  const quietBtn = (label, hours) => el('button', { class: 'quiet', title: 'No alerts or automatic fixes while you work on it', onclick: () => setQuiet(c.id, hours, msg) }, label);
+  const quietBtns = owner && !c.quiet ? [quietBtn('🤫 Quiet', 0)] : [];
   for (const a of c.actions.filter(a => a.action === 'check_now')) acts.append(btn(a));
-  if (c.status === 'up' && extra.length) {
-    const hidden = extra.map(btn);
+  if (owner && c.quiet && c.quiet.service === c.id) acts.append(el('button', { class: 'quiet', onclick: () => setQuiet(c.id, -1, msg) }, 'Lift quiet'));
+  if (c.status === 'up' && extra.length + quietBtns.length) {
+    const hidden = [...extra.map(btn), ...quietBtns];
     hidden.forEach(b => b.hidden = true);
     const more = el('button', { class: 'quiet', 'aria-expanded': 'false', 'aria-label': 'More for ' + c.name, onclick: () => {
       const on = more.getAttribute('aria-expanded') !== 'true';
@@ -379,7 +402,7 @@ function row(c) {
       more.replaceChildren(...(on ? two('Less', '−') : two('More', '⋯')));
     } }, ...two('More', '⋯'));
     acts.append(more, ...hidden);
-  } else for (const a of extra) acts.append(btn(a));
+  } else { for (const a of extra) acts.append(btn(a)); acts.append(...quietBtns); }
   if (c.link && /^https?:\/\//.test(c.link)) acts.append(el('a', { class: 'open', href: c.link, target: '_blank', rel: 'noopener', 'aria-label': 'Open ' + c.name }, ...two('Open', '↗')));
   acts.append(el('button', { class: 'quiet', 'aria-label': 'Updates for ' + c.name, onclick: () => openUpdates(c) }, ...two('Updates', '📝'), c.updates_24h ? ' (' + c.updates_24h + ')' : ''));
   return el('div', { class: 'row' },
@@ -387,11 +410,45 @@ function row(c) {
     el('div', { class: 'what' },
       el('div', {}, el('span', { class: 'mst ' + st }, '● ' + words[st]), el('b', {}, c.name + (c.personal ? ' (yours)' : '')), ' ', el('span', { class: 'd' }, c.detail)),
       c.cause ? el('div', { class: 'c' }, '↳ because ' + c.cause + ' is down') : null,
+      c.quiet ? el('div', { class: 'q' }, '🤫 ' + (c.quiet.service === '*' ? 'Everything is quiet' : 'Quiet') + (c.quiet.until ? ' until ' + new Date(c.quiet.until * 1000).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : '') + (c.quiet.why ? ': ' + c.quiet.why : '') + (owner ? '' : '. ' + (me.owner_name || 'The owner') + ' is working on it.')) : null,
       c.info.length ? el('div', { class: 'x' }, c.info.join(' · ')) : null,
       c.working.length ? el('div', { class: 'w' }, '🛠 ' + c.working.join(', ') + ' on it') : null),
     beats,
     el('div', { class: 'pct', title: '7 days ' + pct(c.uptime['7d']) + ', 30 days ' + pct(c.uptime['30d']) }, el('b', {}, pct(c.uptime['24h'])), el('br'), el('span', { class: 'lbl' }, '24h')),
     acts, msg);
+}
+
+$('quietAll').addEventListener('click', () => setQuiet('*', cards.some(c => c.quiet && c.quiet.service === '*') ? -1 : 0));
+
+// The server panel (owner): CPU, memory, disks and GPUs, like btop.
+let srvTimer = null;
+const gb = n => (n / 1073741824).toFixed(n >= 107374182400 ? 0 : 1) + 'G';
+const tb = n => n >= 1099511627776 ? (n / 1099511627776).toFixed(1) + 'T' : gb(n);
+function meter(label, pct, right, sub) {
+  const p = Math.max(0, Math.min(100, pct || 0));
+  const bar = el('div', { class: 'bar', role: 'meter', 'aria-valuemin': '0', 'aria-valuemax': '100', 'aria-valuenow': String(Math.round(p)), 'aria-label': label }, el('i', { class: p >= 90 ? 'h' : p >= 75 ? 'w' : '', style: 'width:' + p + '%' }));
+  return [el('div', { class: 'm' }, el('span', { title: label }, label), bar, el('span', {}, right)), sub ? el('div', { class: 'sub' }, sub) : null].filter(Boolean);
+}
+async function loadServer() {
+  const box = $('srv');
+  let h;
+  try { h = (await api('/api/server')).server; } catch (e) { box.replaceChildren(el('h3', {}, 'Server'), el('div', { class: 'sub', style: 'margin:0' }, e.message)); return; }
+  const up = h.uptime_seconds >= 86400 ? Math.floor(h.uptime_seconds / 86400) + 'd up' : Math.floor(h.uptime_seconds / 3600) + 'h up';
+  const out = [el('h3', {}, el('span', {}, 'Server'), el('span', {}, up + ' · load ' + h.load_1m.toFixed(1)))];
+  out.push(...meter('CPU', h.cpu_percent, Math.round(h.cpu_percent) + '%', h.cores ? h.cores + ' threads' : ''));
+  if (h.mem_total) out.push(...meter('RAM', 100 * h.mem_used / h.mem_total, gb(h.mem_used) + '/' + gb(h.mem_total)));
+  for (const d of h.disks) out.push(...meter(d.name, 100 * d.used / d.total, tb(d.used) + '/' + tb(d.total)));
+  for (const g of h.gpus) out.push(...meter(g.name, g.busy_percent, Math.round(g.busy_percent) + '%', 'VRAM ' + gb(g.mem_used) + '/' + gb(g.mem_total) + (g.temp_c ? ' · ' + Math.round(g.temp_c) + '°C' : '')));
+  box.replaceChildren(...out);
+}
+
+async function setQuiet(id, hours, msg) {
+  try {
+    const r = hours < 0 ? await api('/api/owner/quiet/' + encodeURIComponent(id), { method: 'DELETE' })
+      : await api('/api/owner/quiet', { method: 'POST', body: { service: id, hours } });
+    if (msg) { msg.className = 'rowmsg msg good'; msg.textContent = r.result; }
+  } catch (e) { if (msg) { msg.className = 'rowmsg msg bad'; msg.textContent = e.message; } }
+  loadBoard();
 }
 
 async function act(c, a, msg) {
@@ -613,6 +670,8 @@ async function start() {
   $('whoami').textContent = me.name + ' · ' + me.role;
   $('menuWho').textContent = me.name;
   $('ownerTab').classList.toggle('hidden', me.role !== 'owner');
+  $('quietAll').classList.toggle('hidden', me.role !== 'owner');
+  $('srv').classList.toggle('hidden', !me.server_view);
   if (me.faith_url) { $('faith').href = me.faith_url; $('faith').classList.remove('hidden'); } else $('faith').classList.add('hidden');
   if (!$('log').children.length) say('bot', '👋 Hi ' + me.name + '. Something broke? Tell me.');
   show('board');

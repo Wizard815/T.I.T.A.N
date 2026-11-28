@@ -3,8 +3,11 @@
 package web
 
 import (
+	"bytes"
 	"context"
+	"crypto/hmac"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -12,8 +15,10 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"os"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -38,6 +43,7 @@ type App struct {
 	Agent       *agent.Agent
 	HTTP        *http.Client
 	ExportToken string // Overseer's bearer token for /api/events
+	HookToken   string // Hermes's bearer token for /api/hooks/*
 	Salt        string // for pseudonyms in events
 	OwnerName   string // shown to people, e.g. "Wizard"
 	Secure      bool   // Secure cookies (behind HTTPS)
@@ -47,7 +53,7 @@ type App struct {
 	recheck time.Duration // wait after a fix before checking again
 	wg      sync.WaitGroup
 	healMu  sync.Mutex
-	healed  map[string]time.Time // service id -> when T.I.T.A.N last fixed it by itself
+	healed  map[string]time.Time // service id -> when T.I.T.A.N last looked at it by itself
 	room    room
 }
 
@@ -104,6 +110,7 @@ type Card struct {
 	CheckedAt int64              `json:"checked_at,omitempty"`
 	MS        int64              `json:"ms,omitempty"`
 	Uptime    map[string]float64 `json:"uptime"`          // "24h", "7d", "30d": 0-100, or -1
+	Quiet     *db.Quiet          `json:"quiet,omitempty"` // the owner is working on it
 	BeatAt    []int64            `json:"beat_at"`         // when each beat was checked
 	Marks     []Mark             `json:"marks"`           // updates and log lines posted in the beats' time span
 	Beats     []int              `json:"beats"`           // newest last: 1 up, 0 down
@@ -131,6 +138,10 @@ func (a *App) Board(ctx context.Context, u agent.User) ([]Card, error) {
 	if err != nil {
 		return nil, err
 	}
+	quiets, err := a.DB.Quiets(ctx)
+	if err != nil {
+		return nil, err
+	}
 	var out []Card
 	for _, s := range a.Runner.Services() {
 		if !a.sees(s, u) {
@@ -142,6 +153,14 @@ func (a *App) Board(ctx context.Context, u agent.User) ([]Card, error) {
 		}
 		if u.Role == config.Owner && !u.Room {
 			c.Link = s.Link // home addresses: they rarely work for anyone else
+		}
+		if q, ok := quiets[s.ID]; ok {
+			c.Quiet = &q
+		} else if q, ok := quiets["*"]; ok {
+			c.Quiet = &q
+		}
+		if c.Quiet != nil && u.Role != config.Owner {
+			c.Quiet = &db.Quiet{Service: c.Quiet.Service, Until: c.Quiet.Until} // who and why are the owner's
 		}
 		c.Updates, c.Working = counts[s.ID], working[s.ID]
 		if c.Working == nil {
@@ -489,44 +508,145 @@ func (a *App) later(s config.Service) {
 	}()
 }
 
-// heal is T.I.T.A.N fixing a service by itself: it waits one check (a
-// blip often clears), then starts or restarts it once, and the usual
-// re-check says whether that worked. Once an hour at most per service;
-// after that it's the owner's (the down note already went to the inbox).
-func (a *App) heal(s config.Service) {
+// respond is T.I.T.A.N looking at something that went down by itself. It
+// waits one check (a blip often clears), then triage reads the check, the
+// logs and the playbook and says whether a simple fix should help. If so
+// and self-heal is on, it runs that fix once (once an hour at most per
+// service) and the usual re-check says whether it worked; if not, the
+// owner gets told why. Nothing happens while the service is quiet.
+func (a *App) respond(s config.Service) {
 	d := a.recheck
 	if d == 0 {
 		d = 30 * time.Second
 	}
 	time.Sleep(d)
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer cancel()
-	if r := a.Runner.CheckOne(ctx, s); r.OK {
+	if a.quiet(ctx, s.ID) {
 		return
+	}
+	r := a.Runner.CheckOne(ctx, s)
+	if r.OK {
+		return
+	}
+	var fixes []string
+	if a.Cfg.Heals(s) {
+		for _, act := range []string{config.ActStart, config.ActRestart} {
+			if contains(s.Actions, act) {
+				fixes = append(fixes, act)
+			}
+		}
 	}
 	a.healMu.Lock()
 	if a.healed == nil {
 		a.healed = map[string]time.Time{}
 	}
-	if t, ok := a.healed[s.ID]; ok && time.Since(t) < time.Hour {
-		a.healMu.Unlock()
-		a.post(ctx, s.ID, "Still down after T.I.T.A.N's own fix earlier, so it's left for "+a.OwnerName+".")
+	t, again := a.healed[s.ID]
+	again = again && time.Since(t) < time.Hour
+	a.healMu.Unlock()
+	if again {
+		a.post(ctx, s.ID, "Still down. T.I.T.A.N already looked at it this hour, so it's left for "+a.OwnerName+".")
+		a.hook(ctx, "needs_owner", s, r.Detail, "Still down after T.I.T.A.N looked at it earlier this hour.")
 		return
 	}
+	a.healMu.Lock()
 	a.healed[s.ID] = time.Now()
 	a.healMu.Unlock()
-	last, _ := a.Runner.Last(s.ID)
-	act := healAction(s, last.Detail)
-	if n, _ := a.DB.DoneSince(ctx, s.ID, act, time.Now().Add(-10*time.Minute)); n > 0 {
+
+	in := agent.TriageInput{Name: s.Name, Detail: r.Detail, Fixes: fixes}
+	if s.Container != "" && s.Check.Found == "" {
+		in.Logs, _ = a.logs(ctx, s) // titan-hands says no unless logs are allowed for it
+	}
+	owner := agent.User{Name: "titan", Role: config.Owner}
+	for _, n := range a.SkillsAbout(owner, s.ID+" "+s.Name) {
+		if body, err := a.Skill(owner, n); err == nil {
+			in.Playbooks += body + "\n"
+		}
+	}
+	var res agent.TriageResult
+	var err error
+	if a.Agent != nil {
+		res, err = a.Agent.Triage(ctx, in)
+	} else {
+		err = errors.New("no helper model")
+	}
+	if err != nil {
+		// No model to ask: the plain rule (start what's off, restart the rest).
+		res = agent.TriageResult{Why: "T.I.T.A.N couldn't think it through (" + err.Error() + ")."}
+		if len(fixes) > 0 {
+			res.Fix = healAction(s, r.Detail)
+		}
+	}
+	a.event(ctx, "triage", map[string]any{"service": s.ID, "detail": r.Detail, "fix": res.Fix, "why": res.Why, "model": res.Model, "logs": len(in.Logs) > 0})
+	if res.Fix == "" {
+		msg := "T.I.T.A.N looked: needs " + a.OwnerName + ". " + res.Why
+		if !a.Cfg.Heals(s) && s.Check.Found == "" && len(s.Actions) > 0 && err == nil {
+			msg += " (Self-heal is off for this one.)"
+		}
+		a.post(ctx, s.ID, msg)
+		a.note(ctx, "needs_owner", "titan", s.Name+": "+res.Why)
+		a.hook(ctx, "needs_owner", s, r.Detail, res.Why)
+		return
+	}
+	if n, _ := a.DB.DoneSince(ctx, s.ID, res.Fix, time.Now().Add(-10*time.Minute)); n > 0 {
 		return // someone just pressed Yes on it; let that play out
 	}
-	msg, err := a.run(ctx, s, act)
+	msg, err := a.run(ctx, s, res.Fix)
 	state := "done"
 	if err != nil {
 		state, msg = "failed", err.Error()
 	}
-	a.post(ctx, s.ID, fmt.Sprintf("T.I.T.A.N tried to %s by itself: %s", lowerFirst(proposalLabel(act, s.Name)), msg))
-	a.event(ctx, "action", map[string]any{"who": "titan", "role": "titan", "service": s.ID, "action": act, "state": state, "result": msg, "via": "heal"})
+	a.post(ctx, s.ID, fmt.Sprintf("T.I.T.A.N looked: %s It tried to %s by itself: %s", res.Why, lowerFirst(proposalLabel(res.Fix, s.Name)), msg))
+	a.event(ctx, "action", map[string]any{"who": "titan", "role": "titan", "service": s.ID, "action": res.Fix, "state": state, "result": msg, "via": "heal"})
+	a.hook(ctx, "self_fix", s, r.Detail, res.Why+" Tried to "+lowerFirst(proposalLabel(res.Fix, s.Name))+": "+msg)
+}
+
+// quiet says whether the owner has asked T.I.T.A.N to leave id (or
+// everything) alone for now.
+func (a *App) quiet(ctx context.Context, id string) bool {
+	q, err := a.DB.Quiets(ctx)
+	if err != nil {
+		return false
+	}
+	_, one := q[id]
+	_, all := q["*"]
+	return one || all
+}
+
+// hook tells another system (Hermes) what happened: needs_owner,
+// self_fix or back_up. Names of people never go in it.
+func (a *App) hook(ctx context.Context, kind string, s config.Service, detail, why string) {
+	h := a.Cfg.Notify.Hook
+	if h == nil || h.URL == "" {
+		return
+	}
+	now := time.Now().Unix()
+	body, _ := json.Marshal(map[string]any{"source": "titan", "event_type": kind, "kind": kind, "service": s.ID, "name": s.Name, "detail": detail, "why": why, "at": now})
+	a.wg.Add(1)
+	go func() {
+		defer a.wg.Done()
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		req, _ := http.NewRequestWithContext(ctx, "POST", h.URL, bytes.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		if t := os.Getenv(h.TokenEnv); h.TokenEnv != "" && t != "" {
+			req.Header.Set("Authorization", "Bearer "+t)
+		}
+		if sec := os.Getenv(h.SecretEnv); h.SecretEnv != "" && sec != "" {
+			// Hermes' generic V2 signature: HMAC-SHA256 of "<timestamp>.<body>".
+			ts := strconv.FormatInt(now, 10)
+			m := hmac.New(sha256.New, []byte(sec))
+			m.Write([]byte(ts + "."))
+			m.Write(body)
+			req.Header.Set("X-Webhook-Timestamp", ts)
+			req.Header.Set("X-Webhook-Signature-V2", hex.EncodeToString(m.Sum(nil)))
+		}
+		if resp, err := a.HTTP.Do(req); err != nil {
+			slog.Warn("hook", "err", err)
+		} else {
+			resp.Body.Close()
+		}
+	}()
 }
 
 // lowerFirst turns "Restart FAITH" into "restart FAITH" for mid-sentence use.
@@ -566,13 +686,17 @@ func (a *App) OnChange(s config.Service, r db.Result) {
 	} else {
 		a.post(ctx, s.ID, "Went down: "+r.Detail)
 	}
+	if a.quiet(ctx, s.ID) {
+		return // the owner is working on it: no alerts, no fixes
+	}
+	if r.OK {
+		a.hook(ctx, "back_up", s, r.Detail, "")
+	}
 	// Only the root problem goes to the inbox, not every service behind it.
 	if !r.OK && cause == "" {
 		a.note(ctx, "down", "titan", s.Name+" is down: "+r.Detail)
-	}
-	if !r.OK && cause == "" && a.Cfg.Heals(s) {
 		a.wg.Add(1)
-		go func() { defer a.wg.Done(); a.heal(s) }()
+		go func() { defer a.wg.Done(); a.respond(s) }()
 	}
 }
 

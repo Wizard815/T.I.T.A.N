@@ -3,7 +3,10 @@ package web
 import (
 	"bytes"
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
 	"encoding/binary"
+	"encoding/hex"
 	"encoding/json"
 	"io"
 	"net"
@@ -765,6 +768,12 @@ func TestTitan_DownBecauseOfAnotherService(t *testing.T) {
 func TestTitan_SelfHealStartsWhatWentDownOnceAnHour(t *testing.T) {
 	w := newWorld(t)
 	ctx := context.Background()
+	var triaged string
+	w.argos.reply = func(model string, body map[string]any) (int, map[string]any) {
+		msgs := body["messages"].([]any)
+		triaged = msgs[len(msgs)-1].(map[string]any)["content"].(string)
+		return 200, text(`{"fix":"start_service","why":"It stopped by itself."}`)
+	}
 	set := func(on bool) {
 		w.docker.mu.Lock()
 		w.docker.running["minecraft"] = on
@@ -786,10 +795,13 @@ func TestTitan_SelfHealStartsWhatWentDownOnceAnHour(t *testing.T) {
 	ups, _ := w.app.DB.Updates(ctx, "minecraft", 10)
 	said := false
 	for _, u := range ups {
-		said = said || strings.Contains(u.Text, "T.I.T.A.N tried to start Minecraft by itself")
+		said = said || strings.Contains(u.Text, "It tried to start Minecraft by itself")
 	}
 	if !said {
 		t.Fatalf("no update about the self-heal: %+v", ups)
+	}
+	if !strings.Contains(triaged, "Check says: Container is exited") {
+		t.Fatalf("triage didn't see the check: %q", triaged)
 	}
 
 	// Down again within the hour: left for the owner.
@@ -889,5 +901,177 @@ func TestTitan_UpdatesShowOnTheUptimeBar(t *testing.T) {
 	marks, _ := mc["marks"].([]any)
 	if len(marks) != 1 || marks[0].(map[string]any)["text"] != "lag spike again" || len(mc["beat_at"].([]any)) != len(mc["beats"].([]any)) {
 		t.Fatalf("marks: %v beat_at: %v", mc["marks"], mc["beat_at"])
+	}
+}
+
+func TestTitan_TriageLeavesHardProblemsToTheOwner(t *testing.T) {
+	w := newWorld(t)
+	ctx := context.Background()
+	w.argos.reply = func(model string, body map[string]any) (int, map[string]any) {
+		// a model that tries to sneak in a fix it wasn't offered
+		return 200, text(`{"fix":"rm -rf /","why":"The disk is full."}`)
+	}
+	set := func(on bool) {
+		w.docker.mu.Lock()
+		w.docker.running["minecraft"] = on
+		w.docker.mu.Unlock()
+	}
+	set(true)
+	w.app.Runner.Round(ctx)
+	w.app.Wait()
+	before := len(w.docker.got())
+	set(false)
+	w.app.Runner.Round(ctx)
+	w.app.Wait()
+	if got := w.docker.got()[before:]; len(got) != 0 {
+		t.Fatalf("ran something it wasn't offered: %v", got)
+	}
+	notes, _ := w.app.DB.Notes(ctx)
+	found := false
+	for _, n := range notes {
+		found = found || (n.Kind == "needs_owner" && strings.Contains(n.Text, "The disk is full."))
+	}
+	if !found {
+		t.Fatalf("owner not told: %+v", notes)
+	}
+}
+
+func TestTitan_QuietMeansNoAlertsAndNoFixes(t *testing.T) {
+	w := newWorld(t)
+	ctx := context.Background()
+	w.argos.reply = func(model string, body map[string]any) (int, map[string]any) {
+		return 200, text(`{"fix":"start_service","why":"It stopped."}`)
+	}
+	owner, friend := w.login("wizard"), w.login("alex")
+	if code, _ := friend.do("POST", "/api/owner/quiet", map[string]any{"service": "minecraft", "hours": 1}); code != 403 {
+		t.Fatalf("a friend set quiet: %d", code)
+	}
+	if code, b := owner.do("POST", "/api/owner/quiet", map[string]any{"service": "minecraft", "hours": 1, "why": "moving worlds"}); code != 200 {
+		t.Fatalf("quiet: %d %v", code, b)
+	}
+	if q, _ := friend.board()["minecraft"]["quiet"].(map[string]any); q == nil || q["why"] != "" || q["by"] != "" {
+		t.Fatalf("friend should see quiet without the why: %v", q)
+	}
+	set := func(on bool) {
+		w.docker.mu.Lock()
+		w.docker.running["minecraft"] = on
+		w.docker.mu.Unlock()
+	}
+	set(true)
+	w.app.Runner.Round(ctx)
+	w.app.Wait()
+	notesBefore, _ := w.app.DB.Notes(ctx)
+	before := len(w.docker.got())
+	set(false)
+	w.app.Runner.Round(ctx)
+	w.app.Wait()
+	notes, _ := w.app.DB.Notes(ctx)
+	if got := w.docker.got()[before:]; len(got) != 0 || len(notes) != len(notesBefore) {
+		t.Fatalf("quiet still fixed (%v) or alerted (%d -> %d)", got, len(notesBefore), len(notes))
+	}
+	// Hermes lifts it with its token; then the next drop is handled.
+	w.app.HookToken = "hook-token"
+	req, _ := http.NewRequest("DELETE", w.srv.URL+"/api/hooks/quiet/minecraft", nil)
+	if resp, _ := http.DefaultClient.Do(req); resp.StatusCode != 401 {
+		t.Fatalf("hook without token: %d", resp.StatusCode)
+	}
+	req.Header.Set("Authorization", "Bearer hook-token")
+	if resp, _ := http.DefaultClient.Do(req); resp.StatusCode != 200 {
+		t.Fatalf("hook lift: %d", resp.StatusCode)
+	}
+	set(true)
+	w.app.Runner.Round(ctx)
+	set(false)
+	w.app.Runner.Round(ctx)
+	w.app.Wait()
+	if got := w.docker.got()[before:]; len(got) != 1 {
+		t.Fatalf("after lifting, minecraft should be started: %v", got)
+	}
+}
+
+func TestTitan_OwnerCanQuietFromChatOthersCant(t *testing.T) {
+	w := newWorld(t)
+	offered := map[string]bool{}
+	w.argos.reply = func(model string, body map[string]any) (int, map[string]any) {
+		if model == "guard-m" {
+			return 200, text(`{"verdict":"allow","reason":"ok"}`)
+		}
+		has := false
+		for _, tl := range body["tools"].([]any) {
+			has = has || tl.(map[string]any)["function"].(map[string]any)["name"] == "quiet"
+		}
+		sys := body["messages"].([]any)[0].(map[string]any)["content"].(string)
+		offered[strings.SplitN(strings.SplitN(sys, "You are talking to ", 2)[1], ",", 2)[0]] = has
+		if _, isTool := lastTool(body); !isTool && has {
+			return 200, toolCall("quiet", `{"service":"minecraft","hours":2,"why":"moving worlds"}`)
+		}
+		return 200, text("👍")
+	}
+	w.login("wizard").do("POST", "/api/chat", map[string]string{"message": "messing with minecraft, dont worry"})
+	w.login("sam").do("POST", "/api/chat", map[string]string{"message": "messing with minecraft, dont worry"})
+	if !offered["wizard"] || offered["sam"] {
+		t.Fatalf("quiet tool offered: %v", offered)
+	}
+	if !w.app.quiet(context.Background(), "minecraft") {
+		t.Fatalf("minecraft isn't quiet")
+	}
+}
+
+func TestTitan_ServerPanelIsTheOwners(t *testing.T) {
+	w := newWorld(t)
+	if code, _ := w.login("alex").do("GET", "/api/server", nil); code != 403 {
+		t.Fatalf("friend saw the server: %d", code)
+	}
+	if _, me := w.login("sam").do("GET", "/api/me", nil); me["server_view"] != false {
+		t.Fatalf("family told it has the server view: %v", me)
+	}
+	code, body := w.login("wizard").do("GET", "/api/server", nil)
+	if code != 200 || body["server"] == nil {
+		t.Fatalf("owner server view: %d %v", code, body)
+	}
+}
+
+func TestTitan_HookIsSignedForHermes(t *testing.T) {
+	w := newWorld(t)
+	ctx := context.Background()
+	got := make(chan *http.Request, 4)
+	bodies := make(chan []byte, 4)
+	hs := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		b, _ := io.ReadAll(r.Body)
+		got <- r
+		bodies <- b
+	}))
+	defer hs.Close()
+	t.Setenv("TEST_HOOK_SECRET", "s3cret")
+	w.app.Cfg.Notify.Hook = &config.Hook{URL: hs.URL, SecretEnv: "TEST_HOOK_SECRET"}
+	w.argos.reply = func(model string, body map[string]any) (int, map[string]any) {
+		return 200, text(`{"fix":"","why":"The disk is full."}`)
+	}
+	w.docker.mu.Lock()
+	w.docker.running["minecraft"] = true
+	w.docker.mu.Unlock()
+	w.app.Runner.Round(ctx)
+	w.app.Wait()
+	for len(got) > 0 { // back_up from the first round
+		<-got
+		<-bodies
+	}
+	w.docker.mu.Lock()
+	w.docker.running["minecraft"] = false
+	w.docker.mu.Unlock()
+	w.app.Runner.Round(ctx)
+	w.app.Wait()
+	if len(got) == 0 {
+		t.Fatalf("no hook sent")
+	}
+	r, b := <-got, <-bodies
+	m := hmac.New(sha256.New, []byte("s3cret"))
+	m.Write([]byte(r.Header.Get("X-Webhook-Timestamp") + "."))
+	m.Write(b)
+	if r.Header.Get("X-Webhook-Signature-V2") != hex.EncodeToString(m.Sum(nil)) {
+		t.Fatalf("bad signature")
+	}
+	if !strings.Contains(string(b), `"event_type":"needs_owner"`) || !strings.Contains(string(b), "The disk is full.") || strings.Contains(string(b), "wizard") {
+		t.Fatalf("hook body: %s", b)
 	}
 }

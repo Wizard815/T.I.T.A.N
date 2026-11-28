@@ -67,6 +67,7 @@ Open http://127.0.0.1:9910 and sign in as `wizard`, `sam` (family) or `alex` (fr
 - [docs/models.md](docs/models.md): picking the guard, helper and fallback in Argos (local or cloud)
 - [docs/actions.md](docs/actions.md): the fixes, AMP game servers, titan-hands' allowlist, and adding a service
 - [docs/connect.md](docs/connect.md): how it connects to the homelab, finding containers, labels
+- [docs/hermes.md](docs/hermes.md): self-checks and fixes, quiet mode, and telling Hermes
 - [docs/skills.md](docs/skills.md): playbooks the helper reads, and adding your own
 - [docs/demo-unraid.md](docs/demo-unraid.md): a test on a copy of Wizard's Unraid with real models (`demo/unraid/run.sh`)
 - [docs/page.md](docs/page.md): the layout, caveman replies and Explain, the room and `/agent`, updates

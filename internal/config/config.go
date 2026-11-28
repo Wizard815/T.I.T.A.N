@@ -62,6 +62,9 @@ type Config struct {
 	// itself, once an hour at most, then check whether that fixed it.
 	// On unless set to false; a service can say heal: false too.
 	Heal *bool `yaml:"heal"`
+	// ServerView is who sees the server panel (CPU, memory, disks, GPUs from
+	// titan-hands): owner (default), family, friends, or off.
+	ServerView string `yaml:"server_view"`
 }
 
 // Heals says whether T.I.T.A.N may fix s by itself when it goes down.
@@ -143,6 +146,14 @@ type Hands struct {
 
 type Notify struct {
 	NtfyURL string `yaml:"ntfy_url"` // optional: POST a line here for the owner
+	Hook    *Hook  `yaml:"hook"`     // optional: POST JSON here (Hermes) when T.I.T.A.N needs the owner, fixed something, or something came back
+}
+
+// Hook is another system T.I.T.A.N tells about incidents, such as Hermes.
+type Hook struct {
+	URL       string `yaml:"url"`        // e.g. http://hermes:8644/webhooks/titan
+	SecretEnv string `yaml:"secret_env"` // env var with the HMAC secret (Hermes' generic V2 signature)
+	TokenEnv  string `yaml:"token_env"`  // env var with a bearer token instead (optional)
 }
 
 // Kuma is an outside uptime app T.I.T.A.N can read: Uptime Kuma (a
@@ -322,6 +333,11 @@ func Parse(b []byte) (*Config, error) {
 		c.Discover.Audience = r
 	} else {
 		return nil, fmt.Errorf("discover.audience must be friends, family or owner, got %q", c.Discover.Audience)
+	}
+	if v := c.ServerView; v != "" && v != "off" {
+		if _, ok := audienceRole(v); !ok {
+			return nil, fmt.Errorf("server_view must be owner, family, friends or off, got %q", v)
+		}
 	}
 	if c.Kuma.Kind == "kuma" && c.Kuma.URL != "" && c.Kuma.Slug == "" {
 		return nil, fmt.Errorf("kuma.slug is needed: the name of a published Uptime Kuma status page")

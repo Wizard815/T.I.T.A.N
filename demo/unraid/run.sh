@@ -13,6 +13,13 @@ ORPROXY_BUDGET=${ORPROXY_BUDGET:-0.90} \
   ORPROXY_MODELS=${ORPROXY_MODELS:-"titan-guard=google/gemini-2.5-flash-lite titan-agent=google/gemini-2.5-flash titan-fallback=openai/gpt-4.1-nano"} \
   "$tmp/orproxy" &
 sleep 0.5
+# two MI50s for the server panel (the demo reads this machine's real CPU and memory)
+for c in 0 1; do
+  d="$tmp/sys/class/drm/card$c/device"; mkdir -p "$d/hwmon/hwmon$c"
+  echo 34342961152 > "$d/mem_info_vram_total"; echo $(( (c + 1) * 9000000000 )) > "$d/mem_info_vram_used"
+  echo $(( 20 + c * 47 )) > "$d/gpu_busy_percent"; echo $(( 48000 + c * 21000 )) > "$d/hwmon/hwmon$c/temp1_input"
+done
+TITAN_HANDS_SYS="$tmp/sys" TITAN_HANDS_DISKS="array=/ cache=$tmp" \
 TITAN_HANDS_TOKEN=demo-hands-token-0123 TITAN_HANDS_ADDR=127.0.0.1:9911 DOCKER_SOCK="$tmp/docker.sock" \
   TITAN_HANDS_CONTAINERS="faith:restart:logs binhex-plexpass:restart Unraid-Cloudflared-Tunnel:restart argos" \
   TITAN_HANDS_AMP_URL=http://127.0.0.1:9901 TITAN_HANDS_AMP_USER=titan TITAN_HANDS_AMP_PASSWORD=demo-amp TITAN_HANDS_AMP_INSTANCES=Enshrouded01 \

@@ -49,6 +49,7 @@ type Reply struct {
 	AMP     *AMPState `json:"amp,omitempty"`
 
 	Containers []Container `json:"containers,omitempty"`
+	Host       *Host       `json:"host,omitempty"`
 }
 
 type State struct {
@@ -66,6 +67,7 @@ type Rules struct {
 	PerHour    int                        // changing ops per target per hour
 	AMP        *AMPRules                  // game servers in AMP; nil = off
 	NoDiscover bool                       // refuse the read-only container list
+	Host       HostRules                  // the read-only server view (CPU, memory, disks, GPUs)
 }
 
 // ParseContainers reads "faith:restart:logs minecraft" (space or comma
@@ -169,6 +171,9 @@ func (s *Server) do(w http.ResponseWriter, r *http.Request) {
 func (s *Server) Do(ctx context.Context, req Request) (Reply, int) {
 	if req.Op == OpList {
 		return s.list(ctx)
+	}
+	if req.Op == OpHost {
+		return s.host(ctx)
 	}
 	if strings.HasPrefix(req.Op, "amp_") {
 		return s.amp(ctx, req)

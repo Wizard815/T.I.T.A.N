@@ -70,6 +70,9 @@ type Tools interface {
 	// Named lists the ids of the services this person can see that a
 	// message names, so a fix is only offered for what they asked about.
 	Named(u User, text string) []string
+	// SetQuiet (owner only) stops alerts and automatic fixes for a service
+	// ("all" = everything) for hours (0 = until lifted; below 0 lifts it).
+	SetQuiet(ctx context.Context, u User, service string, hours float64, why string) (string, error)
 }
 
 type Agent struct {
@@ -245,6 +248,9 @@ var tools = []Tool{
 	{Type: "function", Function: ToolDef{Name: "tell_owner", Description: "Pass a short message to the owner when the fix isn't on the list.", Parameters: map[string]any{"type": "object", "properties": map[string]any{"message": map[string]any{"type": "string"}}, "required": []string{"message"}}}},
 }
 
+// quietTool is only offered to the owner (never in the room).
+var quietTool = Tool{Type: "function", Function: ToolDef{Name: "quiet", Description: "Owner only. When the owner says they're working on something or turning things off on purpose (\"messing with plex, don't worry\"), stop alerts and automatic checks and fixes for it. hours 0 = until they say; -1 = lift it (\"done with plex\"). service \"all\" = everything.", Parameters: map[string]any{"type": "object", "properties": map[string]any{"service": map[string]any{"type": "string", "description": "service id from status, or all"}, "hours": map[string]any{"type": "number"}, "why": map[string]any{"type": "string"}}, "required": []string{"service", "hours"}}}}
+
 const maxRounds = 7
 
 // saysYes spots a reply that promises a Yes button.
@@ -285,9 +291,13 @@ func (a *Agent) Ask(ctx context.Context, u User, text string) Turn {
 	msgs = append(msgs, a.past(u.key())...)
 	msgs = append(msgs, Message{Role: "user", Content: text})
 	models := []string{a.Helper, a.Fallback}
+	ts := tools
+	if u.Role == "owner" && !u.Room {
+		ts = append(slices.Clone(tools), quietTool)
+	}
 	nudged := false
 	for round := 0; round < maxRounds; round++ {
-		msg, model, err := a.Models.First(ctx, models, msgs, tools, false)
+		msg, model, err := a.Models.First(ctx, models, msgs, ts, false)
 		if err != nil && len(t.Proposals) > 0 {
 			// The fix is already offered; the Yes button says the rest.
 			t.Calls = append(t.Calls, "error: "+err.Error())
@@ -299,7 +309,7 @@ func (a *Agent) Ask(ctx context.Context, u User, text string) Turn {
 			// The model that started this turn failed part way: let the
 			// others pick it up rather than lose what was found.
 			t.Calls = append(t.Calls, "error: "+err.Error())
-			msg, model, err = a.Models.First(ctx, others(models[0], a.Helper, a.Fallback), msgs, tools, false)
+			msg, model, err = a.Models.First(ctx, others(models[0], a.Helper, a.Fallback), msgs, ts, false)
 		}
 		if err != nil {
 			t.Calls = append(t.Calls, "error: "+err.Error())
@@ -373,6 +383,15 @@ func (a *Agent) call(ctx context.Context, u User, c ToolCall, t *Turn) string {
 	case "read_skill":
 		s, err := a.Tools.Skill(u, args.Name)
 		return orErr(s, err)
+	case "quiet":
+		var q struct {
+			Service string
+			Hours   float64
+			Why     string
+		}
+		json.Unmarshal([]byte(c.Function.Arguments), &q)
+		msg, err := a.Tools.SetQuiet(ctx, u, q.Service, q.Hours, q.Why)
+		return orErr(msg, err)
 	case "tell_owner":
 		if err := a.Tools.TellOwner(ctx, u, args.Message); err != nil {
 			return "Couldn't pass it on: " + err.Error()

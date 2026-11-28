@@ -10,6 +10,9 @@
 //	TITAN_HANDS_AMP_USER, TITAN_HANDS_AMP_PASSWORD   an AMP user that may start and restart those instances
 //	TITAN_HANDS_AMP_INSTANCES  "Enshrouded01" (instance or friendly names)
 //	TITAN_HANDS_DISCOVER    0 stops titan listing containers (names, state, ports, titan.* and Unraid web UI labels)
+//	TITAN_HANDS_HOST        0 turns off the read-only server view (CPU, memory, disks, GPUs)
+//	TITAN_HANDS_DISKS       "array=/host/mnt/user cache=/host/mnt/cache" (mount them read only)
+//	TITAN_HANDS_PROC, TITAN_HANDS_SYS  where the host's /proc and /sys are (default /proc, /sys)
 //	DOCKER_SOCK             default /var/run/docker.sock
 //	TITAN_HANDS_ADDR        default :8111
 package main
@@ -54,7 +57,12 @@ func main() {
 			fail("TITAN_HANDS_AMP_URL is set, so TITAN_HANDS_AMP_USER and TITAN_HANDS_AMP_PASSWORD are needed too")
 		}
 	}
-	s := &hands.Server{Token: tok, Rules: hands.Rules{Containers: cs, Syncs: ss, PerHour: per, AMP: amp, NoDiscover: os.Getenv("TITAN_HANDS_DISCOVER") == "0"}, Docker: hands.DockerClient(sock), HTTP: &http.Client{Timeout: 60 * time.Second}}
+	disks, err := hands.ParseDisks(os.Getenv("TITAN_HANDS_DISKS"))
+	if err != nil {
+		fail("TITAN_HANDS_DISKS: " + err.Error())
+	}
+	host := hands.HostRules{Proc: os.Getenv("TITAN_HANDS_PROC"), Sys: os.Getenv("TITAN_HANDS_SYS"), Disks: disks, Off: os.Getenv("TITAN_HANDS_HOST") == "0"}
+	s := &hands.Server{Token: tok, Rules: hands.Rules{Containers: cs, Syncs: ss, PerHour: per, AMP: amp, NoDiscover: os.Getenv("TITAN_HANDS_DISCOVER") == "0", Host: host}, Docker: hands.DockerClient(sock), HTTP: &http.Client{Timeout: 60 * time.Second}}
 	names := make([]string, 0, len(cs))
 	for n := range cs {
 		names = append(names, n)

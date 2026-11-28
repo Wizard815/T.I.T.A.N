@@ -84,6 +84,12 @@ CREATE TABLE IF NOT EXISTS room (
   proposals TEXT NOT NULL DEFAULT '',
   removed INTEGER NOT NULL DEFAULT 0
 );
+CREATE TABLE IF NOT EXISTS quiet (
+  service TEXT PRIMARY KEY,     -- a service id, or "*" for everything
+  until INTEGER NOT NULL,       -- unix time; 0 = until the owner lifts it
+  by TEXT NOT NULL,
+  why TEXT NOT NULL DEFAULT ''
+);
 CREATE TABLE IF NOT EXISTS events (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   at INTEGER NOT NULL,
@@ -458,6 +464,48 @@ func (d *DB) Working(ctx context.Context) (map[string][]string, error) {
 			return nil, err
 		}
 		out[s] = append(out[s], n)
+	}
+	return out, rows.Err()
+}
+
+// ---- quiet: the owner is working on something, so don't fix or alert ----
+
+type Quiet struct {
+	Service string `json:"service"`
+	Until   int64  `json:"until"` // 0 = until lifted
+	By      string `json:"by"`
+	Why     string `json:"why"`
+}
+
+func (d *DB) SetQuiet(ctx context.Context, q Quiet) error {
+	_, err := d.ExecContext(ctx, `INSERT INTO quiet (service, until, by, why) VALUES (?, ?, ?, ?)
+		ON CONFLICT(service) DO UPDATE SET until = excluded.until, by = excluded.by, why = excluded.why`, q.Service, q.Until, q.By, q.Why)
+	return err
+}
+
+func (d *DB) LiftQuiet(ctx context.Context, service string) error {
+	_, err := d.ExecContext(ctx, `DELETE FROM quiet WHERE service = ?`, service)
+	return err
+}
+
+// Quiets lists what is quiet now, by service ("*" = everything).
+func (d *DB) Quiets(ctx context.Context) (map[string]Quiet, error) {
+	now := time.Now().Unix()
+	if _, err := d.ExecContext(ctx, `DELETE FROM quiet WHERE until > 0 AND until <= ?`, now); err != nil {
+		return nil, err
+	}
+	rows, err := d.QueryContext(ctx, `SELECT service, until, by, why FROM quiet`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[string]Quiet{}
+	for rows.Next() {
+		var q Quiet
+		if err := rows.Scan(&q.Service, &q.Until, &q.By, &q.Why); err != nil {
+			return nil, err
+		}
+		out[q.Service] = q
 	}
 	return out, rows.Err()
 }

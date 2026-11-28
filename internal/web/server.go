@@ -79,6 +79,13 @@ func (a *App) Handler() http.Handler {
 	m.Handle("POST /api/owner/users/{name}", a.signedIn(config.Owner, a.changeUser))
 	m.Handle("DELETE /api/owner/users/{name}", a.signedIn(config.Owner, a.removeUser))
 
+	m.Handle("GET /api/server", a.signedIn("", a.server))
+	m.Handle("POST /api/owner/quiet", a.signedIn(config.Owner, a.quietPost))
+	m.Handle("DELETE /api/owner/quiet/{service}", a.signedIn(config.Owner, a.quietDelete))
+	m.Handle("POST /api/hooks/quiet", a.hookAuth(a.quietPost))
+	m.Handle("DELETE /api/hooks/quiet/{service}", a.hookAuth(a.quietDelete))
+	m.Handle("GET /api/hooks/status", a.hookAuth(a.hookStatus))
+
 	m.HandleFunc("GET /api/events", a.events)
 	return m
 }
@@ -180,7 +187,7 @@ func (a *App) logout(w http.ResponseWriter, r *http.Request) {
 
 func (a *App) me(w http.ResponseWriter, r *http.Request) {
 	u := userFrom(r)
-	writeJSON(w, 200, map[string]any{"name": u.Name, "role": u.Role, "owner_name": a.OwnerName, "faith_url": a.FaithLink(u)})
+	writeJSON(w, 200, map[string]any{"name": u.Name, "role": u.Role, "owner_name": a.OwnerName, "faith_url": a.FaithLink(u), "server_view": a.ServerView(u)})
 }
 
 func (a *App) board(w http.ResponseWriter, r *http.Request) {

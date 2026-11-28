@@ -32,8 +32,13 @@ services:
       TITAN_HANDS_AMP_USER: ${TITAN_HANDS_AMP_USER:-}
       TITAN_HANDS_AMP_PASSWORD: ${TITAN_HANDS_AMP_PASSWORD:-}
       TITAN_HANDS_AMP_INSTANCES: ${TITAN_HANDS_AMP_INSTANCES:-}
+      # The server panel: CPU, memory and AMD GPUs come from /proc and /sys;
+      # disks from the read-only mounts below.
+      TITAN_HANDS_DISKS: ${TITAN_HANDS_DISKS:-array=/host/mnt/user cache=/host/mnt/cache}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
+      - /mnt/user:/host/mnt/user:ro
+      - /mnt/cache:/host/mnt/cache:ro
     networks: [titan_inside]
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8111/health"]
