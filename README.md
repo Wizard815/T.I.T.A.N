@@ -1,5 +1,7 @@
 # T.I.T.A.N
 
+[![License: PolyForm Shield 1.0.0](https://img.shields.io/badge/license-PolyForm%20Shield%201.0.0-blue)](LICENSE)
+
 **Timely Intelligence for Tasks, Answers, and Navigation**: a status board and help desk for the people who use Wizard's homelab.
 
 It's like Uptime Kuma, but it shows more on each card. It also has a chat that can fix the common things itself. Examples: the game server is stopped, FAITH stopped answering, the DnD sync hasn't run in a day. Friends and family sign in, see the services meant for them with uptime, and ask for help. Before anything changes, the person presses Yes.
@@ -74,4 +76,13 @@ Open http://127.0.0.1:9910 and sign in as `wizard`, `sam` (family) or `alex` (fr
 - [docs/cards.md](docs/cards.md): extra card info and "down because of something else"
 - [docs/overseer.md](docs/overseer.md): the event feed Overseer reads for training data
 
-`go test ./...` runs the tests against fakes. MIT licensed.
+`go test ./...` runs the tests against fakes.
+
+## License
+
+T.I.T.A.N is source-available under the
+[PolyForm Shield License 1.0.0](LICENSE). You can read, run, change and share
+it for free, including at work. You can't sell it or offer it as a competing
+product or hosted service without permission: open an issue titled
+"License request" to ask. [docs/LICENSING.md](docs/LICENSING.md) explains it
+in plain English. Versions published before the switch stay under MIT.
