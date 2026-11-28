@@ -878,3 +878,16 @@ func TestTitan_JoinNotesComeWithCantJoin(t *testing.T) {
 		t.Fatalf("join notes when nobody asked: %q", r)
 	}
 }
+
+func TestTitan_UpdatesShowOnTheUptimeBar(t *testing.T) {
+	w := newWorld(t)
+	c := w.login("alex")
+	if code, _ := c.do("POST", "/api/updates/minecraft", map[string]any{"text": "lag spike again"}); code != 200 {
+		t.Fatalf("post update: %d", code)
+	}
+	mc := c.board()["minecraft"]
+	marks, _ := mc["marks"].([]any)
+	if len(marks) != 1 || marks[0].(map[string]any)["text"] != "lag spike again" || len(mc["beat_at"].([]any)) != len(mc["beats"].([]any)) {
+		t.Fatalf("marks: %v beat_at: %v", mc["marks"], mc["beat_at"])
+	}
+}

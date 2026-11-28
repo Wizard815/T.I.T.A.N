@@ -86,6 +86,13 @@ func (a *App) find(id string) (config.Service, bool) {
 
 // ---- the board ----
 
+// Mark is an update shown on the uptime bar at the time it was posted.
+type Mark struct {
+	At   int64  `json:"at"`
+	Who  string `json:"who"`
+	Text string `json:"text"`
+}
+
 type Card struct {
 	ID        string             `json:"id"`
 	Name      string             `json:"name"`
@@ -97,6 +104,8 @@ type Card struct {
 	CheckedAt int64              `json:"checked_at,omitempty"`
 	MS        int64              `json:"ms,omitempty"`
 	Uptime    map[string]float64 `json:"uptime"`          // "24h", "7d", "30d": 0-100, or -1
+	BeatAt    []int64            `json:"beat_at"`         // when each beat was checked
+	Marks     []Mark             `json:"marks"`           // updates and log lines posted in the beats' time span
 	Beats     []int              `json:"beats"`           // newest last: 1 up, 0 down
 	Info      []string           `json:"info"`            // extra facts ("2 people watching")
 	Cause     string             `json:"cause,omitempty"` // down because this service is down
@@ -142,8 +151,25 @@ func (a *App) Board(ctx context.Context, u agent.User) ([]Card, error) {
 		if err != nil {
 			return nil, err
 		}
+		c.Marks = []Mark{}
 		for _, r := range recent {
 			c.Beats = append(c.Beats, map[bool]int{true: 1, false: 0}[r.OK])
+			c.BeatAt = append(c.BeatAt, r.At)
+		}
+		if len(recent) > 0 {
+			ups, err := a.DB.Updates(ctx, s.ID, 30)
+			if err != nil {
+				return nil, err
+			}
+			for _, up := range ups {
+				if up.At >= recent[0].At {
+					who := up.Author
+					if up.Bot {
+						who = "T.I.T.A.N"
+					}
+					c.Marks = append(c.Marks, Mark{At: up.At, Who: who, Text: up.Text})
+				}
+			}
 		}
 		if n := len(recent); n > 0 {
 			last := recent[n-1]
