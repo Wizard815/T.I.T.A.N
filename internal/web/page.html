@@ -51,8 +51,20 @@
   /* 2. chat, the top third */
   .chat { height:33vh; min-height:240px; display:flex; flex-direction:column; border-bottom:1px solid var(--line); background:var(--card); }
   .chat .wrap { flex:1; display:flex; flex-direction:column; min-height:0; width:100%; padding-top:8px; padding-bottom:8px; gap:8px; }
-  .melog { flex:1; display:flex; gap:8px; min-height:0; }
-  .srv { width:230px; flex:none; align-self:flex-start; background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:6px 8px; font-size:.72rem; font-variant-numeric:tabular-nums; }
+  .top2 { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:12px; margin:0 0 12px; align-items:start; }
+  .top2:has(.srv.hidden) { grid-template-columns:minmax(0,1fr); }
+  .actp { background:var(--card); border:1px solid var(--line); border-radius:8px; padding:4px 8px 6px; margin:0; font-size:.76rem; }
+  .acth { margin:2px 0 4px; font-size:.68rem; color:var(--muted); text-transform:uppercase; letter-spacing:.1em; font-weight:400; }
+  .tl .fwd { float:right; display:inline-flex; gap:4px; } .tl .fwd button { min-height:22px; padding:0 6px; font-size:.68rem; }
+  .feed { list-style:none; margin:0; padding:0; max-height:170px; overflow-y:auto; }
+  .feed li { padding:2px 0; border-top:1px solid var(--line); display:grid; grid-template-columns:48px minmax(0,1fr); gap:6px; cursor:pointer; }
+  .feed li:first-child { border-top:none; }
+  .feed .t { color:var(--muted); } .feed .need { color:var(--warn); } .feed .bot { color:var(--accent); } .feed b { color:var(--head); font-weight:600; }
+  .feed .mrow { display:flex; justify-content:space-between; gap:8px; padding:2px 0; border-top:1px solid var(--line); } .feed .mrow span:last-child { color:var(--muted); text-align:right; }
+  .srv { margin:0; background:var(--card); border:1px solid var(--line); border-radius:8px; padding:2px 8px; font-size:.72rem; font-variant-numeric:tabular-nums; }
+  .srv summary { cursor:pointer; color:var(--muted); min-height:22px; display:flex; align-items:center; gap:10px; white-space:nowrap; overflow:hidden; }
+  .srv summary b { color:var(--ink); font-weight:600; }
+  .srv[open] #srvBody { display:grid; grid-template-columns:repeat(auto-fill, minmax(200px, 1fr)); gap:0 16px; padding:2px 0 6px; }
   .srv h3 { margin:0 0 4px; font-size:.68rem; color:var(--muted); text-transform:uppercase; letter-spacing:.1em; display:flex; justify-content:space-between; font-weight:400; }
   .srv .m { display:grid; grid-template-columns:44px 1fr 58px; gap:6px; align-items:center; margin:2px 0; }
   .srv .m span:first-child { color:var(--muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
@@ -87,7 +99,8 @@
   @media (max-width:760px) {
     .panes { grid-template-columns:minmax(0,1fr); gap:0; } .tabs { display:flex; }
     .pane.off { display:none; } .pane h2 { display:none; }
-    .srv { display:none; }
+    .srv[open] #srvBody { grid-template-columns:1fr; }
+    .top2 { grid-template-columns:minmax(0,1fr); }
     .chat .wrap { gap:6px; padding-top:6px; padding-bottom:6px; }
     .ask input { min-height:44px; } .ask button { min-width:64px; }
   }
@@ -208,27 +221,33 @@
       <div class="panes">
         <div class="pane" id="paneMe">
           <h2><span>You and T.I.T.A.N</span><span>only you see this</span></h2>
-          <div class="melog">
-            <div class="log" id="log" role="log" aria-live="polite"></div>
-            <aside class="srv hidden" id="srv" aria-label="The server right now"></aside>
-          </div>
+          <div class="log" id="log" role="log" aria-live="polite"></div>
           <form class="ask" id="chatForm">
             <input id="chatText" maxlength="2000" autocomplete="off" aria-label="Message to T.I.T.A.N" placeholder="What's wrong? (the game server won't start)">
             <button type="submit" id="chatSend">Send</button>
           </form>
         </div>
         <div class="pane off" id="paneRoom">
-          <h2><span>#room</span><span>everyone signed in · /agent asks T.I.T.A.N</span></h2>
+          <h2><span>#room</span><span>everyone signed in · /titan asks T.I.T.A.N</span></h2>
           <div class="irc" id="irc" role="log" aria-live="polite" aria-label="Room chat"></div>
           <form class="ask" id="roomForm">
-            <input id="roomText" maxlength="500" autocomplete="off" aria-label="Message to the room" placeholder="Say hi · /agent asks T.I.T.A.N">
+            <input id="roomText" maxlength="500" autocomplete="off" aria-label="Message to the room" placeholder="Say hi · /titan asks T.I.T.A.N">
             <button type="submit" id="roomSend">Send</button>
           </form>
         </div>
       </div>
     </div>
   </section>
-  <main class="wrap"><div id="groups"></div></main>
+  <main class="wrap">
+    <div class="top2">
+      <details class="srv hidden" id="srv" open><summary id="srvSum" aria-label="The server right now">Server</summary><div id="srvBody"></div></details>
+      <section class="actp" id="actp" aria-label="Activity and media">
+        <h3 class="acth">Activity</h3>
+        <ul class="feed" id="feed" role="log" aria-live="polite"></ul>
+      </section>
+    </div>
+    <div id="groups"></div>
+  </main>
 </div>
 
 <div class="wrap">
@@ -270,7 +289,7 @@
 <dialog id="upd" aria-labelledby="updTitle">
   <div class="dlg-head"><h2 id="updTitle">Updates</h2><button class="quiet" id="updClose" aria-label="Close updates">Close</button></div>
   <p class="hint" id="updMeta"></p>
-  <div style="display:flex;gap:6px;flex-wrap:wrap;margin:0 0 8px"><button class="quiet" id="onIt">I'm on it</button><button class="quiet" id="offIt">I'm done</button></div>
+  <div style="display:flex;gap:6px;flex-wrap:wrap;margin:0 0 8px"><button class="quiet" id="onIt">I'm on it</button><button class="quiet" id="offIt">I'm done</button><button class="quiet hidden" id="updConfirm">✅ Confirmed up</button></div>
   <form id="updForm" style="display:flex;gap:6px"><input id="updText" maxlength="500" aria-label="Post an update" placeholder="Post an update (what you saw, what you tried)"><button type="submit">Post</button></form>
   <p class="msg" id="updMsg" role="status" aria-live="polite"></p>
   <ul class="tl" id="updList"></ul>
@@ -313,8 +332,10 @@ function show(view) {
   clearInterval(timer);
   clearInterval(roomTimer);
   clearInterval(srvTimer);
+  clearInterval(actTimer);
   if (view === 'board') { loadBoard(); timer = setInterval(loadBoard, 30000); loadRoom(); roomTimer = setInterval(loadRoom, 4000);
-    if (me && me.server_view) { loadServer(); srvTimer = setInterval(loadServer, 5000); } }
+    if (me && me.server_view) { loadServer(); srvTimer = setInterval(loadServer, 5000); }
+    loadActivity(); actTimer = setInterval(loadActivity, 10000); }
   if (view === 'owner') loadOwner();
 }
 
@@ -391,7 +412,7 @@ function row(c) {
   const quietBtn = (label, hours) => el('button', { class: 'quiet', title: 'No alerts or automatic fixes while you work on it', onclick: () => setQuiet(c.id, hours, msg) }, label);
   const quietBtns = owner && !c.quiet ? [quietBtn('🤫 Quiet', 0)] : [];
   for (const a of c.actions.filter(a => a.action === 'check_now')) acts.append(btn(a));
-  if (owner && c.quiet && c.quiet.service === c.id) acts.append(el('button', { class: 'quiet', onclick: () => setQuiet(c.id, -1, msg) }, 'Lift quiet'));
+  if (c.quiet && c.quiet.service === c.id) acts.append(el('button', { class: 'quiet', title: 'It works again: end quiet and turn alerts back on', onclick: () => confirmUp(c.id, msg) }, '✅ Confirmed up'));
   if (c.status === 'up' && extra.length + quietBtns.length) {
     const hidden = [...extra.map(btn), ...quietBtns];
     hidden.forEach(b => b.hidden = true);
@@ -403,7 +424,6 @@ function row(c) {
     } }, ...two('More', '⋯'));
     acts.append(more, ...hidden);
   } else { for (const a of extra) acts.append(btn(a)); acts.append(...quietBtns); }
-  if (c.link && /^https?:\/\//.test(c.link)) acts.append(el('a', { class: 'open', href: c.link, target: '_blank', rel: 'noopener', 'aria-label': 'Open ' + c.name }, ...two('Open', '↗')));
   acts.append(el('button', { class: 'quiet', 'aria-label': 'Updates for ' + c.name, onclick: () => openUpdates(c) }, ...two('Updates', '📝'), c.updates_24h ? ' (' + c.updates_24h + ')' : ''));
   return el('div', { class: 'row' },
     el('div', { class: 'st ' + st }, el('i'), words[st]),
@@ -420,6 +440,7 @@ function row(c) {
 
 $('quietAll').addEventListener('click', () => setQuiet('*', cards.some(c => c.quiet && c.quiet.service === '*') ? -1 : 0));
 
+$('srv').addEventListener('toggle', () => { try { localStorage.setItem('titan.srv', $('srv').open ? '1' : '0'); } catch {} });
 // The server panel (owner): CPU, memory, disks and GPUs, like btop.
 let srvTimer = null;
 const gb = n => (n / 1073741824).toFixed(n >= 107374182400 ? 0 : 1) + 'G';
@@ -427,19 +448,47 @@ const tb = n => n >= 1099511627776 ? (n / 1099511627776).toFixed(1) + 'T' : gb(n
 function meter(label, pct, right, sub) {
   const p = Math.max(0, Math.min(100, pct || 0));
   const bar = el('div', { class: 'bar', role: 'meter', 'aria-valuemin': '0', 'aria-valuemax': '100', 'aria-valuenow': String(Math.round(p)), 'aria-label': label }, el('i', { class: p >= 90 ? 'h' : p >= 75 ? 'w' : '', style: 'width:' + p + '%' }));
-  return [el('div', { class: 'm' }, el('span', { title: label }, label), bar, el('span', {}, right)), sub ? el('div', { class: 'sub' }, sub) : null].filter(Boolean);
+  return [el('div', {}, el('div', { class: 'm' }, el('span', { title: label }, label), bar, el('span', {}, right)), sub ? el('div', { class: 'sub' }, sub) : null)];
 }
 async function loadServer() {
-  const box = $('srv');
   let h;
-  try { h = (await api('/api/server')).server; } catch (e) { box.replaceChildren(el('h3', {}, 'Server'), el('div', { class: 'sub', style: 'margin:0' }, e.message)); return; }
+  try { h = (await api('/api/server')).server; } catch (e) { $('srvSum').textContent = 'Server: ' + e.message; return; }
   const up = h.uptime_seconds >= 86400 ? Math.floor(h.uptime_seconds / 86400) + 'd up' : Math.floor(h.uptime_seconds / 3600) + 'h up';
-  const out = [el('h3', {}, el('span', {}, 'Server'), el('span', {}, up + ' · load ' + h.load_1m.toFixed(1)))];
-  out.push(...meter('CPU', h.cpu_percent, Math.round(h.cpu_percent) + '%', h.cores ? h.cores + ' threads' : ''));
+  const pc = n => Math.round(n) + '%';
+  const sum = [el('span', {}, 'Server'), el('span', {}, 'CPU ', el('b', {}, pc(h.cpu_percent)))];
+  if (h.mem_total) sum.push(el('span', {}, 'RAM ', el('b', {}, pc(100 * h.mem_used / h.mem_total))));
+  for (const d of h.disks) sum.push(el('span', {}, d.name + ' ', el('b', {}, pc(100 * d.used / d.total))));
+  if (h.gpus.length) sum.push(el('span', {}, 'GPU ', el('b', {}, h.gpus.map(g => pc(g.busy_percent)).join(' '))));
+  $('srvSum').replaceChildren(...sum);
+  const out = [];
+  out.push(...meter('CPU', h.cpu_percent, pc(h.cpu_percent), (h.cores ? h.cores + ' threads · ' : '') + 'load ' + h.load_1m.toFixed(1) + ' · ' + up));
   if (h.mem_total) out.push(...meter('RAM', 100 * h.mem_used / h.mem_total, gb(h.mem_used) + '/' + gb(h.mem_total)));
   for (const d of h.disks) out.push(...meter(d.name, 100 * d.used / d.total, tb(d.used) + '/' + tb(d.total)));
-  for (const g of h.gpus) out.push(...meter(g.name, g.busy_percent, Math.round(g.busy_percent) + '%', 'VRAM ' + gb(g.mem_used) + '/' + gb(g.mem_total) + (g.temp_c ? ' · ' + Math.round(g.temp_c) + '°C' : '')));
-  box.replaceChildren(...out);
+  for (const g of h.gpus) out.push(...meter(g.name, g.busy_percent, pc(g.busy_percent), 'VRAM ' + gb(g.mem_used) + '/' + gb(g.mem_total) + (g.temp_c ? ' · ' + Math.round(g.temp_c) + '°C' : '')));
+  $('srvBody').replaceChildren(...out);
+}
+
+// ---- the activity / media panel ----
+let actTimer = null;
+const ago2 = t => { const s = Math.max(0, Date.now() / 1000 - t); return s < 60 ? Math.round(s) + 's' : s < 3600 ? Math.round(s / 60) + 'm' : s < 86400 ? Math.round(s / 3600) + 'h' : Math.round(s / 86400) + 'd'; };
+function jumpTo(id) {
+  const c = cards.find(x => x.id === id); if (c) openUpdates(c);
+}
+async function loadActivity() {
+  let r;
+  try { r = await api('/api/activity'); } catch (e) { $('feed').replaceChildren(el('li', {}, e.message)); return; }
+  $('feed').replaceChildren(...(r.items.length ? r.items.map(i => el('li', { title: new Date(i.at * 1000).toLocaleString(), onclick: () => i.service && jumpTo(i.service) },
+    el('span', { class: 't' }, ago2(i.at)),
+    el('span', {}, i.kind === 'needs_you' ? el('span', { class: 'need' }, '⚠ ') : null, i.service ? el('b', {}, i.name + ' ') : null,
+      el('span', { class: i.kind === 'titan' ? 'bot' : '' }, (i.kind === 'person' ? i.who + ': ' : '') + i.text)))) :
+    [el('li', { class: 'hint' }, 'Nothing has happened yet.')]));
+}
+
+
+async function confirmUp(id, msg) {
+  try { const r = await api('/api/confirm/' + encodeURIComponent(id), { method: 'POST' }); if (msg) { msg.className = 'rowmsg msg good'; msg.textContent = r.result; } }
+  catch (e) { if (msg) { msg.className = 'rowmsg msg bad'; msg.textContent = e.message; } }
+  loadBoard(); if ($('upd').open) loadUpdates();
 }
 
 async function setQuiet(id, hours, msg) {
@@ -507,7 +556,7 @@ async function send(text) {
   const done = looking();
   try {
     const t = await api('/api/chat', { method: 'POST', body: { message: text } });
-    done();
+    done(); loadBoard(); // a reply may have changed the board (quiet, a fix)
     const b = say('bot', t.reply);
     if (!onlyEmoji(t.reply) && t.verdict.verdict === 'allow') {
       const ex = el('button', { class: 'quiet', onclick: async () => {
@@ -600,8 +649,14 @@ async function loadUpdates() {
     const r = await api('/api/updates/' + encodeURIComponent(c.id));
     const chk = r.checked && r.checked[0];
     $('updMeta').textContent = (chk ? 'Last check ' + ago(chk.at) + ': ' + chk.detail + '. ' : '') + (r.working.length ? r.working.join(', ') + ' working on it.' : 'Nobody is working on it.');
+    const live = cards.find(x => x.id === c.id) || c;
+    $('updConfirm').classList.toggle('hidden', !(live.quiet && live.quiet.service === c.id));
     $('updList').replaceChildren(...(r.updates.length ? r.updates.map(u => el('li', {},
-      el('div', { class: 't' }, new Date(u.at * 1000).toLocaleString() + ' · ', el('span', { class: u.bot ? 'bot' : '' }, u.bot ? 'T.I.T.A.N' : u.author)), u.text)) :
+      el('div', { class: 't' }, new Date(u.at * 1000).toLocaleString() + ' · ', el('span', { class: u.bot ? 'bot' : '' }, u.bot ? 'T.I.T.A.N' : u.author),
+        el('span', { class: 'fwd' },
+          roomOn ? el('button', { class: 'quiet small', title: 'Share this in #room, with a question for T.I.T.A.N', onclick: () => forward(c, u, 'room') }, '→ room') : null,
+          el('button', { class: 'quiet small', title: 'Ask T.I.T.A.N about this', onclick: () => forward(c, u, 'titan') }, '→ T.I.T.A.N'))),
+      u.text)) :
       [el('li', { class: 'hint' }, 'No updates yet.')]));
   } catch (e) { $('updMsg').className = 'msg bad'; $('updMsg').textContent = e.message; }
 }
@@ -611,6 +666,15 @@ async function postUpdate(body) {
 }
 $('updForm').addEventListener('submit', ev => { ev.preventDefault(); postUpdate({ text: $('updText').value }); });
 $('onIt').addEventListener('click', () => postUpdate({ working: true }));
+$('updConfirm').addEventListener('click', () => confirmUp(updCard.id, $('updMsg')));
+// forward puts an update into the room (as a /titan question) or your own chat, ready to finish and send.
+function forward(c, u, where) {
+  const quote = c.name + ' update' + (u.bot ? ' from T.I.T.A.N' : ' from ' + u.author) + ': "' + u.text.slice(0, 220) + '"';
+  $('upd').close();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+  if (where === 'room') { tab('room'); $('roomText').value = '/titan ' + quote + ' '; $('roomText').focus(); }
+  else { tab('me'); $('chatText').value = quote + ' '; $('chatText').focus(); }
+}
 $('offIt').addEventListener('click', () => postUpdate({ working: false }));
 $('updClose').addEventListener('click', () => $('upd').close());
 
@@ -672,6 +736,7 @@ async function start() {
   $('ownerTab').classList.toggle('hidden', me.role !== 'owner');
   $('quietAll').classList.toggle('hidden', me.role !== 'owner');
   $('srv').classList.toggle('hidden', !me.server_view);
+  try { $('srv').open = localStorage.getItem('titan.srv') !== '0'; } catch {}
   if (me.faith_url) { $('faith').href = me.faith_url; $('faith').classList.remove('hidden'); } else $('faith').classList.add('hidden');
   if (!$('log').children.length) say('bot', '👋 Hi ' + me.name + '. Something broke? Tell me.');
   show('board');

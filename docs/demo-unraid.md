@@ -33,7 +33,7 @@ All runs plus the screenshots came to about **$0.05** of the $1 limit (the key w
 | family | dnd notes look old | read dnd-sync, offered Run sync; Yes ran it |
 | owner | readarr says unhealthy | offered a re-check (found containers are look-only) |
 | owner | what's down? | readarr, DnD sync, media pipeline |
-| family in #room | /agent is plex working, is faith ok? | "Plex up. Faith not seen." (the room only sees what friends see) |
+| family in #room | /titan is plex working, is faith ok? | "Plex up. Faith not seen." (the room only sees what friends see) |
 | friend in #room | "this fucking game, sh1t lag" | "this f****** game, s*** lag" |
 
 ## Bugs the real models found, all fixed

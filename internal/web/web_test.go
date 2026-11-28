@@ -8,6 +8,7 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -265,6 +266,7 @@ func newWorld(t *testing.T) *world {
 	app := &App{Cfg: cfg, DB: d, Auth: a, Runner: runner, Hands: hd, HTTP: http.DefaultClient, ExportToken: "export-token", Salt: "s", OwnerName: "Wizard", recheck: time.Millisecond}
 	app.Agent = &agent.Agent{Models: &agent.Models{URL: argos.URL}, Guard: cfg.Models.Guard, Helper: cfg.Models.Agent, Fallback: cfg.Models.Fallback, Tools: app, Owner: "Wizard"}
 	runner.OnChange = app.OnChange
+	runner.AfterRound = app.SweepQuiet
 	runner.Round(ctx)
 	w.app = app
 	w.srv = httptest.NewServer(app.Handler())
@@ -854,17 +856,15 @@ func TestTitan_PlaybooksComeWithTheServiceNamed(t *testing.T) {
 	}
 }
 
-func TestTitan_OpenLinkIsOwnerOnly(t *testing.T) {
+func TestTitan_NoOpenLinkForNow(t *testing.T) {
 	w := newWorld(t)
 	for i := range w.app.Cfg.Services {
 		w.app.Cfg.Services[i].Link = "http://192.168.20.5:1234"
 	}
-	w.app.Runner.Cfg = w.app.Cfg
-	if l := w.login("wizard").board()["minecraft"]["link"]; l == nil {
-		t.Fatalf("owner lost the Open link")
-	}
-	if l := w.login("alex").board()["minecraft"]["link"]; l != nil {
-		t.Fatalf("friend got a home address: %v", l)
+	for _, who := range []string{"wizard", "alex"} {
+		if l, ok := w.login(who).board()["minecraft"]["link"]; ok {
+			t.Fatalf("%s got a home address: %v", who, l)
+		}
 	}
 }
 
@@ -1073,5 +1073,61 @@ func TestTitan_HookIsSignedForHermes(t *testing.T) {
 	}
 	if !strings.Contains(string(b), `"event_type":"needs_owner"`) || !strings.Contains(string(b), "The disk is full.") || strings.Contains(string(b), "wizard") {
 		t.Fatalf("hook body: %s", b)
+	}
+}
+
+func TestTitan_ActivityShowsOnlyWhatYouCanSee(t *testing.T) {
+	w := newWorld(t)
+	ctx := context.Background()
+	w.app.post(ctx, "faith", "T.I.T.A.N looked: family only")
+	w.app.post(ctx, "minecraft", "T.I.T.A.N looked: friends can see")
+	w.app.note(ctx, "needs_owner", "titan", "the disk is full")
+	_, f := w.login("alex").do("GET", "/api/activity", nil)
+	s := fmt.Sprint(f["items"])
+	if strings.Contains(s, "family only") || strings.Contains(s, "disk is full") || !strings.Contains(s, "friends can see") {
+		t.Fatalf("friend activity: %s", s)
+	}
+	_, o := w.login("wizard").do("GET", "/api/activity", nil)
+	if s := fmt.Sprint(o["items"]); !strings.Contains(s, "disk is full") || !strings.Contains(s, "family only") {
+		t.Fatalf("owner activity: %s", s)
+	}
+}
+
+func TestTitan_QuietSaysSoAndEndsByConfirmOrTwoHoursUp(t *testing.T) {
+	w := newWorld(t)
+	ctx := context.Background()
+	owner := w.login("wizard")
+	owner.do("POST", "/api/owner/quiet", map[string]any{"service": "faith", "hours": 0, "why": "moving it to the new disk"})
+	ups, _ := w.app.DB.Updates(ctx, "faith", 5)
+	if len(ups) == 0 || !strings.Contains(ups[0].Text, "wizard is working on it: moving it to the new disk") {
+		t.Fatalf("no working-on-it update: %+v", ups)
+	}
+	if wk, _ := w.app.DB.Working(ctx); len(wk["faith"]) != 1 {
+		t.Fatalf("owner not marked working: %v", wk)
+	}
+	// a friend can't see FAITH, let alone confirm it
+	if code, _ := w.login("alex").do("POST", "/api/confirm/faith", nil); code != 400 {
+		t.Fatalf("friend confirmed: %d", code)
+	}
+	if code, b := w.login("sam").do("POST", "/api/confirm/faith", nil); code != 200 {
+		t.Fatalf("family confirm: %d %v", code, b)
+	}
+	if w.app.quiet(ctx, "faith") {
+		t.Fatalf("still quiet after confirm")
+	}
+	if wk, _ := w.app.DB.Working(ctx); len(wk["faith"]) != 0 {
+		t.Fatalf("still marked working: %v", wk)
+	}
+
+	// Two hours up ends it by itself.
+	owner.do("POST", "/api/owner/quiet", map[string]any{"service": "faith", "hours": 0})
+	w.app.DB.ExecContext(ctx, `UPDATE quiet SET since = ?`, time.Now().Add(-3*time.Hour).Unix())
+	w.app.Runner.Round(ctx)
+	if w.app.quiet(ctx, "faith") {
+		t.Fatalf("quiet should end after 2 hours up")
+	}
+	ups, _ = w.app.DB.Updates(ctx, "faith", 1)
+	if !strings.Contains(ups[0].Text, "Up for 2 hours straight") {
+		t.Fatalf("no 2-hour update: %+v", ups)
 	}
 }

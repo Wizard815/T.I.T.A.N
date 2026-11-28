@@ -8,7 +8,7 @@ It's like Uptime Kuma, but it shows more on each card. It also has a chat that c
 
 ![Your chat with T.I.T.A.N and the shared #room on top, the uptime list below](docs/images/board-chat-room.png)
 
-The page has your own chat and a shared `#room` across the top third, with the list of services below. In the room, people talk to each other (swearing and slurs masked) and can ask T.I.T.A.N with `/agent`. Every service has an **Updates** popup that says who's working on it. See [docs/page.md](docs/page.md).
+The page has your own chat and a shared `#room` across the top third, with the list of services below. In the room, people talk to each other (swearing and slurs masked) and can ask T.I.T.A.N with `/titan`. Every service has an **Updates** popup that says who's working on it. See [docs/page.md](docs/page.md).
 
 ## How it stays safe
 
@@ -72,7 +72,7 @@ Open http://127.0.0.1:9910 and sign in as `wizard`, `sam` (family) or `alex` (fr
 - [docs/hermes.md](docs/hermes.md): self-checks and fixes, quiet mode, and telling Hermes
 - [docs/skills.md](docs/skills.md): playbooks the helper reads, and adding your own
 - [docs/demo-unraid.md](docs/demo-unraid.md): a test on a copy of Wizard's Unraid with real models (`demo/unraid/run.sh`)
-- [docs/page.md](docs/page.md): the layout, caveman replies and Explain, the room and `/agent`, updates
+- [docs/page.md](docs/page.md): the layout, caveman replies and Explain, the room and `/titan`, updates
 - [docs/cards.md](docs/cards.md): extra card info and "down because of something else"
 - [docs/overseer.md](docs/overseer.md): the event feed Overseer reads for training data
 

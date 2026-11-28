@@ -26,8 +26,8 @@ A down row has an **Ask T.I.T.A.N** button. It sends "Minecraft is down. Can you
 - **Swearing and slurs are masked** before a line is saved: "the f****** server". The list catches l33t spellings (sh1t), stretched letters (fuuuck) and spaced letters (f.u.c.k). Words that hide inside innocent ones (class, cocktail, Scunthorpe) are left alone. Add your own words with `room: {words: [...]}`.
 - **No list catches everything.** The owner sees a **remove** button on every line, and the line shows "(removed by Wizard)".
 - **Flooding is slowed:** 8 lines per 30 seconds per person.
-- **`/agent <message>`** (or `/titan`) asks T.I.T.A.N in the room, and the answer is posted there as `@alex …`. Everyone reads it, so it only knows what friends can see, whatever your role. It leaves out personal services, even yours, and keeps its own history, apart from your private chat. A fix it offers shows its Yes only to you, and only your Yes runs it. For family things, ask in your own chat.
-- Room talk is **not** sent to Overseer. `/agent` asks are logged like any chat, under a pseudonym with `"room": true`.
+- **`/titan <message>`** (the old `/agent` still works) asks T.I.T.A.N in the room, and the answer is posted there as `@alex …`. Everyone reads it, so it only knows what friends can see, whatever your role. It leaves out personal services, even yours, and keeps its own history, apart from your private chat. A fix it offers shows its Yes only to you, and only your Yes runs it. For family things, ask in your own chat.
+- Room talk is **not** sent to Overseer. `/titan` asks are logged like any chat, under a pseudonym with `"room": true`.
 - Lines are kept for `keep_days`. Turn the room off with `room: {off: true}`.
 
 ```yaml

@@ -139,6 +139,8 @@ type Runner struct {
 	Now   func() time.Time
 	// OnChange is called when a service goes up or down (not on its first check).
 	OnChange func(svc config.Service, r db.Result)
+	// AfterRound is called after every round of checks.
+	AfterRound func(ctx context.Context)
 
 	mu      sync.Mutex
 	last    map[string]db.Result
@@ -239,6 +241,9 @@ func (r *Runner) Round(ctx context.Context) {
 		if r.OnChange != nil {
 			r.OnChange(svcs[i], results[i])
 		}
+	}
+	if r.AfterRound != nil {
+		r.AfterRound(ctx)
 	}
 }
 

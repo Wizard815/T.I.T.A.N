@@ -119,7 +119,6 @@ type Card struct {
 	Updates   int                `json:"updates_24h"`     // updates in the last day
 	Working   []string           `json:"working"`         // who said they're on it
 	Actions   []ActionView       `json:"actions"`
-	Link      string             `json:"link,omitempty"` // the Open button
 	Found     bool               `json:"found,omitempty"`
 }
 
@@ -150,9 +149,6 @@ func (a *App) Board(ctx context.Context, u agent.User) ([]Card, error) {
 		c := Card{ID: s.ID, Name: s.Name, Group: s.Group, About: s.About, Personal: s.Person != "", Status: "pending", Detail: "Not checked yet", Uptime: map[string]float64{}, Beats: []int{}, Info: a.Runner.Facts(s.ID), Found: s.Check.Found != ""}
 		if c.Info == nil {
 			c.Info = []string{}
-		}
-		if u.Role == config.Owner && !u.Room {
-			c.Link = s.Link // home addresses: they rarely work for anyone else
 		}
 		if q, ok := quiets[s.ID]; ok {
 			c.Quiet = &q

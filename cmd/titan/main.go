@@ -189,6 +189,7 @@ func serve(cfgPath, dataPath string, d *db.DB, a *auth.Auth) error {
 		app.Agent.Ranker = &agent.Ranker{URL: url, Model: rk.Model, APIKey: os.Getenv(rk.KeyEnv), HTTP: &http.Client{}}
 	}
 	runner.OnChange = app.OnChange
+	runner.AfterRound = app.SweepQuiet
 	go runner.Run(ctx)
 
 	addr := env("TITAN_ADDR", ":8130")

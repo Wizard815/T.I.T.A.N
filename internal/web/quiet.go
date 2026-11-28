@@ -39,11 +39,7 @@ func (a *App) SetQuiet(ctx context.Context, u agent.User, id string, hours float
 		id, name = s.ID, s.Name
 	}
 	if hours < 0 {
-		if err := a.DB.LiftQuiet(ctx, id); err != nil {
-			return "", err
-		}
-		a.event(ctx, "quiet", map[string]any{"service": id, "on": false})
-		return name + " isn't quiet any more.", nil
+		return a.liftQuiet(ctx, id, name, "✅ Quiet ended by "+u.Name+": alerts and automatic fixes are back on.")
 	}
 	if hours > 24*7 {
 		hours = 24 * 7
@@ -62,6 +58,14 @@ func (a *App) SetQuiet(ctx context.Context, u agent.User, id string, hours float
 		return "", err
 	}
 	a.event(ctx, "quiet", map[string]any{"service": id, "on": true, "until": q.Until})
+	if id != "*" {
+		line := "🤫 " + u.Name + " is working on it"
+		if q.Why != "" {
+			line += ": " + q.Why
+		}
+		a.post(ctx, id, line+". Alerts and automatic fixes are off until it's confirmed up (or up for 2 hours).")
+		a.DB.SetWorking(ctx, id, u.Name, true)
+	}
 	return fmt.Sprintf("%s is quiet %s: no alerts, no automatic checks or fixes.", name, when), nil
 }
 
@@ -90,6 +94,79 @@ func (a *App) quietDelete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, 200, map[string]string{"result": msg})
+}
+
+// liftQuiet ends quiet on id and says so on the card.
+func (a *App) liftQuiet(ctx context.Context, id, name, line string) (string, error) {
+	qs, err := a.DB.Quiets(ctx)
+	if err != nil {
+		return "", err
+	}
+	q, was := qs[id]
+	if err := a.DB.LiftQuiet(ctx, id); err != nil {
+		return "", err
+	}
+	a.event(ctx, "quiet", map[string]any{"service": id, "on": false})
+	if was && id != "*" {
+		a.post(ctx, id, line)
+		a.DB.SetWorking(ctx, id, q.By, false)
+	}
+	return name + " isn't quiet any more.", nil
+}
+
+// ConfirmUp is "✅ Confirmed up": anyone who may fix the service says it
+// works, which ends its quiet.
+func (a *App) ConfirmUp(ctx context.Context, u agent.User, id string) (string, error) {
+	s, ok := a.find(id)
+	if !ok || !a.sees(s, u) {
+		return "", errNoService
+	}
+	need := s.FixBy
+	if need == "" {
+		need = config.Owner
+	}
+	if !config.AtLeast(u.Role, need) {
+		return "", fmt.Errorf("only someone who can fix %s can confirm it's up", s.Name)
+	}
+	if r, ok := a.Runner.Last(s.ID); ok && !r.OK {
+		return "", fmt.Errorf("%s still looks down (%s). Press Check again first", s.Name, r.Detail)
+	}
+	if _, err := a.liftQuiet(ctx, s.ID, s.Name, "✅ "+u.Name+" confirmed it's up. Alerts and automatic fixes are back on."); err != nil {
+		return "", err
+	}
+	return "Thanks: " + s.Name + " is confirmed up.", nil
+}
+
+func (a *App) confirmUp(w http.ResponseWriter, r *http.Request) {
+	msg, err := a.ConfirmUp(r.Context(), userFrom(r), r.PathValue("service"))
+	if err != nil {
+		fail(w, 400, err.Error())
+		return
+	}
+	writeJSON(w, 200, map[string]string{"result": msg})
+}
+
+// SweepQuiet ends quiet on services that have been up for 2 hours straight
+// since it started. It runs after every round of checks.
+func (a *App) SweepQuiet(ctx context.Context) {
+	qs, err := a.DB.Quiets(ctx)
+	if err != nil {
+		return
+	}
+	for id, q := range qs {
+		if id == "*" || q.Since == 0 || time.Since(time.Unix(q.Since, 0)) < 2*time.Hour {
+			continue
+		}
+		failed, all, err := a.DB.FailedSince(ctx, id, time.Now().Add(-2*time.Hour))
+		if err != nil || all == 0 || failed > 0 {
+			continue
+		}
+		name := id
+		if s, ok := a.find(id); ok {
+			name = s.Name
+		}
+		a.liftQuiet(ctx, id, name, "✅ Up for 2 hours straight, so quiet ended. Alerts and automatic fixes are back on.")
+	}
 }
 
 // caller is the signed-in person, or Hermes (as the owner) on a hook route.

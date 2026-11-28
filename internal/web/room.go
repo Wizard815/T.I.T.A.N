@@ -2,12 +2,12 @@ package web
 
 // The room: one IRC-style chat for everyone signed in. People talk to each
 // other; swearing and slurs are masked before a line is saved. A line that
-// starts with /agent goes to T.I.T.A.N, which answers in the room.
+// starts with /titan (or the old /agent) goes to T.I.T.A.N, which answers in the room.
 //
-// Everyone in the room reads the answer, so /agent runs with friend powers
+// Everyone in the room reads the answer, so /titan runs with friend powers
 // and no personal services, whatever the asker's role, and with the room's
 // own history (never the asker's private chat). Fixes it offers still wait
-// for the asker's own Yes. Room talk is not sent to Overseer; /agent asks
+// for the asker's own Yes. Room talk is not sent to Overseer; /titan asks
 // are, like any chat, under a pseudonym.
 
 import (
@@ -67,7 +67,7 @@ func (a *App) slow(name string) bool {
 	return false
 }
 
-// RoomUser is how /agent sees the asker: friend powers at most.
+// RoomUser is how /titan sees the asker: friend powers at most.
 func RoomUser(u agent.User) agent.User {
 	ru := agent.User{Name: u.Name, Role: u.Role, Room: true}
 	if config.AtLeast(ru.Role, config.Family) {
@@ -78,7 +78,7 @@ func RoomUser(u agent.User) agent.User {
 
 var errRoomOff = errors.New("The room chat is turned off.")
 
-// Say adds a person's line to the room, and answers it when it's /agent.
+// Say adds a person's line to the room, and answers it when it's /titan.
 func (a *App) Say(ctx context.Context, u agent.User, text string) ([]db.Line, error) {
 	if a.Cfg.Room.Off {
 		return nil, errRoomOff
@@ -121,9 +121,9 @@ func (a *App) Say(ctx context.Context, u agent.User, text string) ([]db.Line, er
 	return append(out, l), nil
 }
 
-// agentAsk spots "/agent message" (and "/titan message").
+// agentAsk spots "/titan message" (and the old "/agent message").
 func agentAsk(text string) (string, bool) {
-	for _, c := range []string{"/agent", "/titan"} {
+	for _, c := range []string{"/titan", "/agent"} {
 		if rest, ok := strings.CutPrefix(text, c); ok && (rest == "" || rest[0] == ' ') {
 			return strings.TrimSpace(rest), true
 		}

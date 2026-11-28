@@ -32,7 +32,7 @@ type Verdict struct {
 type User struct {
 	Name string
 	Role string
-	// Room is set for /agent in the shared room: everyone reads the answer,
+	// Room is set for /titan in the shared room: everyone reads the answer,
 	// so the role is capped at friend, personal services are left out, and
 	// the room has its own history apart from the person's own chat.
 	Room bool

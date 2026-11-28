@@ -80,6 +80,8 @@ func (a *App) Handler() http.Handler {
 	m.Handle("DELETE /api/owner/users/{name}", a.signedIn(config.Owner, a.removeUser))
 
 	m.Handle("GET /api/server", a.signedIn("", a.server))
+	m.Handle("GET /api/activity", a.signedIn("", a.activity))
+	m.Handle("POST /api/confirm/{service}", a.signedIn("", a.confirmUp))
 	m.Handle("POST /api/owner/quiet", a.signedIn(config.Owner, a.quietPost))
 	m.Handle("DELETE /api/owner/quiet/{service}", a.signedIn(config.Owner, a.quietDelete))
 	m.Handle("POST /api/hooks/quiet", a.hookAuth(a.quietPost))

@@ -88,7 +88,8 @@ CREATE TABLE IF NOT EXISTS quiet (
   service TEXT PRIMARY KEY,     -- a service id, or "*" for everything
   until INTEGER NOT NULL,       -- unix time; 0 = until the owner lifts it
   by TEXT NOT NULL,
-  why TEXT NOT NULL DEFAULT ''
+  why TEXT NOT NULL DEFAULT '',
+  since INTEGER NOT NULL DEFAULT 0
 );
 CREATE TABLE IF NOT EXISTS events (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -114,6 +115,7 @@ func Open(path string) (*DB, error) {
 	if _, err := s.Exec(schema); err != nil {
 		return nil, fmt.Errorf("can't set up the database at %s: %w", path, err)
 	}
+	s.Exec(`ALTER TABLE quiet ADD COLUMN since INTEGER NOT NULL DEFAULT 0`) // databases from before "since"; fails harmlessly when it's there
 	return &DB{s}, nil
 }
 
@@ -416,6 +418,26 @@ func (d *DB) Updates(ctx context.Context, service string, limit int) ([]Update, 
 	return out, rows.Err()
 }
 
+// RecentUpdates is the newest updates on any service.
+func (d *DB) RecentUpdates(ctx context.Context, limit int) ([]Update, error) {
+	rows, err := d.QueryContext(ctx, `SELECT id, service, at, author, bot, text FROM updates ORDER BY id DESC LIMIT ?`, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []Update{}
+	for rows.Next() {
+		var u Update
+		var bot int
+		if err := rows.Scan(&u.ID, &u.Service, &u.At, &u.Author, &bot, &u.Text); err != nil {
+			return nil, err
+		}
+		u.Bot = bot == 1
+		out = append(out, u)
+	}
+	return out, rows.Err()
+}
+
 // UpdatesSince counts updates per service since t (for the badge).
 func (d *DB) UpdatesSince(ctx context.Context, since time.Time) (map[string]int, error) {
 	rows, err := d.QueryContext(ctx, `SELECT service, count(*) FROM updates WHERE at >= ? GROUP BY service`, since.Unix())
@@ -475,11 +497,12 @@ type Quiet struct {
 	Until   int64  `json:"until"` // 0 = until lifted
 	By      string `json:"by"`
 	Why     string `json:"why"`
+	Since   int64  `json:"since"`
 }
 
 func (d *DB) SetQuiet(ctx context.Context, q Quiet) error {
-	_, err := d.ExecContext(ctx, `INSERT INTO quiet (service, until, by, why) VALUES (?, ?, ?, ?)
-		ON CONFLICT(service) DO UPDATE SET until = excluded.until, by = excluded.by, why = excluded.why`, q.Service, q.Until, q.By, q.Why)
+	_, err := d.ExecContext(ctx, `INSERT INTO quiet (service, until, by, why, since) VALUES (?, ?, ?, ?, ?)
+		ON CONFLICT(service) DO UPDATE SET until = excluded.until, by = excluded.by, why = excluded.why, since = excluded.since`, q.Service, q.Until, q.By, q.Why, time.Now().Unix())
 	return err
 }
 
@@ -494,7 +517,7 @@ func (d *DB) Quiets(ctx context.Context) (map[string]Quiet, error) {
 	if _, err := d.ExecContext(ctx, `DELETE FROM quiet WHERE until > 0 AND until <= ?`, now); err != nil {
 		return nil, err
 	}
-	rows, err := d.QueryContext(ctx, `SELECT service, until, by, why FROM quiet`)
+	rows, err := d.QueryContext(ctx, `SELECT service, until, by, why, since FROM quiet`)
 	if err != nil {
 		return nil, err
 	}
@@ -502,12 +525,18 @@ func (d *DB) Quiets(ctx context.Context) (map[string]Quiet, error) {
 	out := map[string]Quiet{}
 	for rows.Next() {
 		var q Quiet
-		if err := rows.Scan(&q.Service, &q.Until, &q.By, &q.Why); err != nil {
+		if err := rows.Scan(&q.Service, &q.Until, &q.By, &q.Why, &q.Since); err != nil {
 			return nil, err
 		}
 		out[q.Service] = q
 	}
 	return out, rows.Err()
+}
+
+// FailedSince counts failed checks of service since t, and all checks.
+func (d *DB) FailedSince(ctx context.Context, service string, t time.Time) (failed, all int, err error) {
+	err = d.QueryRowContext(ctx, `SELECT coalesce(sum(CASE WHEN ok = 0 THEN 1 ELSE 0 END), 0), count(*) FROM results WHERE service = ? AND at >= ?`, service, t.Unix()).Scan(&failed, &all)
+	return
 }
 
 // ---- the room: one chat everyone signed in shares ----
