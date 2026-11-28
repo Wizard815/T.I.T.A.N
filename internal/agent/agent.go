@@ -36,6 +36,26 @@ type User struct {
 	// so the role is capped at friend, personal services are left out, and
 	// the room has its own history apart from the person's own chat.
 	Room bool
+	// Manages lists services the owner handed this person to run (your
+	// brother runs Enshrouded): every fix on them, as if they were the
+	// owner, but only there. Never set in the room.
+	Manages []string
+	// MustChange is set after an owner's reset (see db.ChangePassword).
+	MustChange int
+}
+
+// Runs reports whether u was handed service id to run. The room never runs
+// anything.
+func (u User) Runs(id string) bool {
+	if u.Room {
+		return false
+	}
+	for _, m := range u.Manages {
+		if m == id {
+			return true
+		}
+	}
+	return false
 }
 
 func (u User) key() string {

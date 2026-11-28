@@ -1131,3 +1131,143 @@ func TestTitan_QuietSaysSoAndEndsByConfirmOrTwoHoursUp(t *testing.T) {
 		t.Fatalf("no 2-hour update: %+v", ups)
 	}
 }
+
+func TestTitan_ResetIsChangemeThenPickYourOwn(t *testing.T) {
+	w := newWorld(t)
+	o := w.login("wizard")
+	// A new account with no password gets changeme.
+	if code, b := o.do("POST", "/api/owner/users", map[string]string{"name": "jo", "role": "friend"}); code != 200 || b["temp"] != true {
+		t.Fatalf("add with changeme: %d %v", code, b)
+	}
+	jar, _ := cookiejar.New(nil)
+	jo := &client{t: t, w: w, c: &http.Client{Jar: jar}}
+	if code, _ := jo.do("POST", "/api/login", map[string]string{"name": "jo", "password": "changeme"}); code != 200 {
+		t.Fatalf("changeme sign-in: %d", code)
+	}
+	if _, me := jo.do("GET", "/api/me", nil); me["must_change"] != float64(1) {
+		t.Fatalf("me should ask for a new password: %v", me)
+	}
+	// Nothing else works until a new password is picked.
+	for _, p := range []string{"/api/board", "/api/room"} {
+		if code, _ := jo.do("GET", p, nil); code != 403 {
+			t.Fatalf("%s before a new password: %d", p, code)
+		}
+	}
+	if code, _ := jo.do("POST", "/api/first", map[string]string{"password": "changeme"}); code != 400 {
+		t.Fatalf("changeme again was accepted: %d", code)
+	}
+	if code, b := jo.do("POST", "/api/first", map[string]string{"password": "jo-picked-this"}); code != 200 {
+		t.Fatalf("first: %d %v", code, b)
+	}
+	if code, _ := jo.do("GET", "/api/board", nil); code != 401 {
+		t.Fatalf("picking a password should sign out: %d", code)
+	}
+	if code, _ := jo.do("POST", "/api/login", map[string]string{"name": "jo", "password": "changeme"}); code != 401 {
+		t.Fatalf("changeme still works: %d", code)
+	}
+
+	// A name reset asks for a new name too; the old sessions end.
+	alex := w.login("alex")
+	if code, b := o.do("POST", "/api/owner/users/alex", map[string]string{"reset": "name"}); code != 200 {
+		t.Fatalf("reset: %d %v", code, b)
+	}
+	if code, _ := alex.do("GET", "/api/board", nil); code != 401 {
+		t.Fatalf("a reset should sign the person out: %d", code)
+	}
+	if code, _ := alex.do("POST", "/api/login", map[string]string{"name": "alex", "password": "changeme"}); code != 200 {
+		t.Fatalf("changeme after reset: %d", code)
+	}
+	if code, _ := alex.do("POST", "/api/first", map[string]string{"password": "alex-new-pass"}); code != 400 {
+		t.Fatalf("a name reset needs a name: %d", code)
+	}
+	if code, b := alex.do("POST", "/api/first", map[string]string{"name": "Lex", "password": "alex-new-pass"}); code != 200 || b["name"] != "lex" {
+		t.Fatalf("first with name: %d %v", code, b)
+	}
+	if code, _ := alex.do("POST", "/api/login", map[string]string{"name": "lex", "password": "alex-new-pass"}); code != 200 {
+		t.Fatalf("sign in with the new name: %d", code)
+	}
+
+	// The owner renames directly, but not into a taken name, and only
+	// the owner can.
+	if code, _ := o.do("POST", "/api/owner/users/kim", map[string]string{"rename": "sam"}); code != 400 {
+		t.Fatalf("rename onto sam: %d", code)
+	}
+	if code, b := o.do("POST", "/api/owner/users/kim", map[string]string{"rename": "kimberly"}); code != 200 || b["name"] != "kimberly" {
+		t.Fatalf("rename: %d %v", code, b)
+	}
+	if code, _ := w.login("sam").do("POST", "/api/owner/users/lex", map[string]string{"reset": "password"}); code != 403 {
+		t.Fatalf("family reset someone: %d", code)
+	}
+	// A reset runs out after a day.
+	w.app.DB.ExecContext(context.Background(), `UPDATE users SET must_change = 1, reset_until = 1 WHERE name = 'kimberly'`)
+	h, _ := auth.Hash("changeme")
+	w.app.DB.ExecContext(context.Background(), `UPDATE users SET pw_hash = ? WHERE name = 'kimberly'`, h)
+	if code, b := jo.do("POST", "/api/login", map[string]string{"name": "kimberly", "password": "changeme"}); code != 401 || !strings.Contains(fmt.Sprint(b["error"]), "ran out") {
+		t.Fatalf("old reset: %d %v", code, b)
+	}
+}
+
+func TestTitan_RunningOneServiceMeansFixingOnlyThat(t *testing.T) {
+	w := newWorld(t)
+	o, alex := w.login("wizard"), w.login("alex")
+	if alex.board()["faith"] != nil {
+		t.Fatal("a friend sees FAITH before being handed it")
+	}
+	if code, _ := o.do("POST", "/api/owner/users/alex", map[string]any{"runs": []string{"sams-hermes"}}); code != 400 {
+		t.Fatalf("a personal service was handed out: %d", code)
+	}
+	if code, b := o.do("POST", "/api/owner/users/alex", map[string]any{"runs": []string{"faith"}}); code != 200 {
+		t.Fatalf("hand out faith: %d %v", code, b)
+	}
+	faith := alex.board()["faith"]
+	if faith == nil || faith["runs"] != true {
+		t.Fatalf("alex should see and run FAITH: %v", faith)
+	}
+	if code, b := alex.do("POST", "/api/propose", map[string]string{"service": "faith", "action": "restart_service"}); code != 200 {
+		t.Fatalf("alex may restart FAITH now: %d %v", code, b)
+	}
+	if code, _ := alex.do("POST", "/api/owner/quiet", map[string]any{"service": "faith", "hours": 0}); code != 200 {
+		t.Fatalf("alex may quiet FAITH: %d", code)
+	}
+	if code, _ := alex.do("POST", "/api/owner/quiet", map[string]any{"service": "minecraft", "hours": 0}); code != 403 {
+		t.Fatalf("alex quieted Minecraft: %d", code)
+	}
+	if code, _ := alex.do("POST", "/api/owner/quiet", map[string]any{"service": "all", "hours": 0}); code != 403 {
+		t.Fatalf("alex quieted everything: %d", code)
+	}
+	if code, _ := alex.do("POST", "/api/propose", map[string]string{"service": "dnd", "action": "run_sync"}); code != 403 {
+		t.Fatalf("alex ran a sync they weren't handed: %d", code)
+	}
+	if code, _ := alex.do("GET", "/api/owner/users", nil); code != 403 {
+		t.Fatalf("running a service isn't owner powers: %d", code)
+	}
+	// The room never gets it: everyone reads the answer there.
+	ru := RoomUser(userOf(t, w, "alex"))
+	if ru.Runs("faith") {
+		t.Fatal("the room runs FAITH")
+	}
+	// Taking it away works.
+	o.do("POST", "/api/owner/users/alex", map[string]any{"runs": []string{}})
+	if w.login("alex").board()["faith"] != nil {
+		t.Fatal("FAITH still shows after taking it away")
+	}
+}
+
+func userOf(t *testing.T, w *world, name string) agent.User {
+	runs, err := w.app.DB.Grants(context.Background(), name)
+	if err != nil {
+		t.Fatal(err)
+	}
+	u, _ := w.app.DB.GetUser(context.Background(), name)
+	return agent.User{Name: name, Role: u.Role, Manages: runs}
+}
+
+func TestTitan_AnyoneWhoSeesItCanPostAnUpdate(t *testing.T) {
+	w := newWorld(t)
+	if code, b := w.login("alex").do("POST", "/api/updates/minecraft", map[string]string{"text": "lagging for me too"}); code != 200 {
+		t.Fatalf("a friend posting an update: %d %v", code, b)
+	}
+	if code, _ := w.login("alex").do("POST", "/api/updates/faith", map[string]string{"text": "hi"}); code != 404 {
+		t.Fatalf("posted on a service they can't see: %d", code)
+	}
+}

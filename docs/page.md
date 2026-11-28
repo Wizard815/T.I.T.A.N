@@ -47,3 +47,12 @@ Each row has **Updates (n)**, where n is the number of posts in the last 24 h. I
 Anyone who can see the service can post there. T.I.T.A.N posts too: when a service goes down or comes back, when it's down because of another service, and when someone runs a fix through it.
 
 ![The updates popup](images/updates.png)
+
+A small dot over the uptime bar marks a check where something was posted. Hover it, tap it or tab to it to read what was posted then. (Phones hide the bar; use Updates there.)
+
+## People (owner page)
+
+- **Add** someone with no password and they get `changeme`. At their first sign-in they must pick their own before anything else works.
+- **Reset → Password** sets `changeme` again and signs them out everywhere. **Reset → Name + password** also makes them pick a new name. A reset works for one day; after that, `changeme` stops working and you reset again. Until they sign in, anyone who knows their name and that a reset happened could, so tell them soon.
+- **Rename** moves the account and its posts, room lines and fixes to the new name. They sign in again with it. Personal services (`person:` in titan.yaml) name the account, so change those by hand.
+- **Runs** hands someone services to run, such as your brother on Enshrouded. They see those services and get every fix listed on them, the quiet button, Confirmed up and Recent problems, as you would. Nothing else changes: no other services, no owner page, and none of it in the room. Personal services and found containers can't be handed out. The fixes are still only the named actions in titan.yaml and titan-hands' allowlist; file fixes come with the backed-up tools work.

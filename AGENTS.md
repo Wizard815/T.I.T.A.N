@@ -20,6 +20,7 @@ T.I.T.A.N is a status board and help desk for Wizard's friends and family. Go 1.
 - **Guard first, allowlist always.** Every chat message goes through `Agent.Check`. The guard fails closed (ask_owner). The allowlist, not the guard, is what keeps things safe.
 - **Changing actions need the person's Yes**, checked against their role again when they press it. The one exception is self-heal (`heal`): after triage, T.I.T.A.N may start or restart a listed service that went down, once an hour, never a found container, never while it is quiet. Triage only picks from the fixes it is handed.
 - **The room is public to everyone signed in.** `/titan` there runs as `RoomUser` (friend at most, no personal services, its own history). Never give it the asker's role or private history.
+- **Runs (grants) are owner powers on one service only.** `App.sees`/`App.allows` are the one place they apply; never in the room, never on personal services or found containers. A reset's `changeme` blocks every route but `/api/me`, `/api/logout` and `/api/first`, and runs out after a day.
 - **Found containers are look-only.** `discover:` cards never get actions; fixes need a `services:` entry and titan-hands' allowlist. `list` passes on only the labels in `keepLabel`.
 - **Events carry pseudonyms, not names.** Overseer is Wizard's alone and only reads `/api/events`.
 - **Models are Argos names** (`titan-guard`, `titan-agent`, `titan-fallback`); pick real models in Argos.

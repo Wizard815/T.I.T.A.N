@@ -38,10 +38,14 @@
   pre.logs { background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:10px; max-height:360px; overflow:auto; font-size:.78rem; white-space:pre-wrap; overflow-wrap:anywhere; }
   .wrap { max-width:1100px; margin:0 auto; padding:0 16px; }
 
+  .tip { position:absolute; z-index:30; background:var(--panel); color:var(--fg); border:1px solid var(--line); border-radius:8px; padding:6px 10px; font-size:.78rem; line-height:1.4; box-shadow:0 6px 20px rgba(0,0,0,.25); pointer-events:auto; }
+  .tip b { display:block; color:var(--head); font-size:.72rem; margin-bottom:2px; } .tip div + div { margin-top:4px; }
+  .tablewrap { overflow-x:auto; } .runs summary { cursor:pointer; color:var(--head); } .chks { display:flex; flex-wrap:wrap; gap:4px 12px; margin:6px 0; max-width:420px; } .chk { font-size:.8rem; white-space:nowrap; }
+  .pill.runs { margin-left:6px; font-size:.68rem; color:var(--accent); border-color:var(--accent); }
   /* 1. header with the info */
   header.top { position:sticky; top:0; z-index:5; background:var(--panel); border-bottom:1px solid var(--line); }
   header.top .wrap { display:flex; align-items:center; gap:12px; flex-wrap:wrap; padding-top:8px; padding-bottom:8px; }
-  .brand { display:flex; align-items:center; gap:8px; } .brand b { color:var(--head); letter-spacing:.1em; } .logo { width:26px; height:26px; }
+  .brand { display:flex; align-items:center; gap:8px; } .brand b { color:var(--head); letter-spacing:.1em; } .bt { display:flex; flex-direction:column; line-height:1.15; } .acro { color:var(--muted); font-size:.68rem; letter-spacing:.02em; } .logo { width:26px; height:26px; }
   .stats { display:flex; gap:6px; flex-wrap:wrap; }
   .pill { border:1px solid var(--line); border-radius:99px; padding:1px 10px; font-size:.8rem; white-space:nowrap; }
   .pill.up { color:var(--good); border-color:var(--good); } .pill.down { color:var(--bad); border-color:var(--bad); } .pill.knock { color:var(--warn); border-color:var(--warn); }
@@ -92,8 +96,9 @@
   .tabs { display:none; gap:6px; } .tabs button { min-height:36px; padding:2px 12px; font-size:.8rem; } .tabs button[aria-selected="true"] { border-color:var(--accent); color:var(--head); }
   .irc { flex:1; overflow-y:auto; min-height:0; background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:6px 8px; font-size:.82rem; line-height:1.45; }
   .irc p { margin:0; overflow-wrap:anywhere; white-space:pre-wrap; }
-  .irc .ts { color:var(--muted); } .irc .nick { color:var(--head); font-weight:600; } .irc .nick.mine { color:var(--warn); }
+  .irc p { display:grid; grid-template-columns:auto auto 1fr auto; column-gap:8px; align-items:baseline; } .irc .ts { color:var(--muted); font-size:.72rem; font-variant-numeric:tabular-nums; } .irc .nick { color:var(--head); font-weight:600; } .irc .nick.mine { color:var(--warn); }
   .irc .bot .nick, .irc .bot .tx { color:var(--accent); } .irc .gone { color:var(--muted); font-style:italic; }
+  .irc .rm { opacity:0; } .irc p:hover .rm, .irc .rm:focus { opacity:1; } @media (hover:none) { .irc .rm { opacity:.7; } }
   .irc .rm { min-height:0; padding:0 6px; margin-left:6px; font-size:.7rem; background:transparent; color:var(--muted); border-color:var(--line); }
   .irc .confirm { margin:2px 0 4px; }
   @media (max-width:760px) {
@@ -121,7 +126,7 @@
   .what b { color:var(--head); font-weight:600; } .what .d { color:var(--ink); font-size:.84rem; }
   .what .x { color:var(--muted); font-size:.78rem; } .what .c { color:var(--warn); font-size:.8rem; } .what .w { color:var(--accent); font-size:.78rem; } .what .q { color:var(--muted); font-size:.78rem; }
   .beats { display:flex; gap:1px; height:14px; } .beats i { flex:1; background:var(--good); border-radius:1px; } .beats i.d { background:var(--bad); } .beats i.e { background:var(--track); }
-  .beats i.m { position:relative; cursor:help; } .beats i.m::before { content:''; position:absolute; top:-5px; left:50%; width:5px; height:5px; margin-left:-2.5px; border-radius:50%; background:var(--accent); }
+  .beats i.m { position:relative; cursor:pointer; } .beats i.m::before { content:''; position:absolute; top:-5px; left:50%; width:5px; height:5px; margin-left:-2.5px; border-radius:50%; background:var(--accent); }
   .pct { font-size:.8rem; text-align:left; font-variant-numeric:tabular-nums; color:var(--muted); } .pct b { color:var(--ink); }
   .acts { display:flex; gap:4px; flex-wrap:wrap; justify-content:flex-end; } .acts button { min-height:32px; padding:2px 8px; font-size:.78rem; }
   .acts a.open { display:inline-flex; align-items:center; min-height:32px; padding:2px 10px; font-size:.78rem; border:1px solid var(--line); border-radius:8px; text-decoration:none; color:var(--head); white-space:nowrap; }
@@ -183,7 +188,7 @@
 </head>
 <body>
 <header class="top"><div class="wrap">
-  <div class="brand"><svg class="logo" viewBox="0 0 32 32" aria-hidden="true"><path d="M16 3l11 5v7c0 7-5 12-11 14C10 27 5 22 5 15V8z" fill="none" stroke="var(--accent)" stroke-width="2"/><path d="M10 16l4 4 8-9" fill="none" stroke="var(--head)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg><b>T.I.T.A.N</b></div>
+  <div class="brand"><svg class="logo" viewBox="0 0 32 32" aria-hidden="true"><path d="M16 3l11 5v7c0 7-5 12-11 14C10 27 5 22 5 15V8z" fill="none" stroke="var(--accent)" stroke-width="2"/><path d="M10 16l4 4 8-9" fill="none" stroke="var(--head)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="bt"><b>T.I.T.A.N</b><small class="acro" id="acro">Total Infrastructure Triage And Notice</small></span></div>
   <div class="stats" id="stats" role="status" aria-live="polite"></div>
   <button class="quiet hidden" id="menu" aria-expanded="false" aria-controls="nav">☰ <span id="menuWho"></span></button>
   <nav id="nav" class="hidden" aria-label="Main">
@@ -259,21 +264,32 @@
     </section>
     <section>
       <h2>People</h2>
-      <p class="hint">Friends see friend services and can fix their game servers. Family see family services too. Owners see everything.</p>
+      <p class="hint">Friends see friend services and can fix their game servers. Family see family services too. Owners see everything. <b>Runs</b> hands someone one service: they see it and get every fix on it, as you would, but nothing else. A reset sets the password to <code>changeme</code> for a day; at the next sign-in they must pick their own (and a new name, for a name reset).</p>
       <form id="addUser" class="form-row">
         <div><label for="nuName">Name</label><input id="nuName" required></div>
         <div><label for="nuRole">Role</label><select id="nuRole"><option value="friend">friend</option><option value="family">family</option><option value="owner">owner</option></select></div>
-        <div><label for="nuPass">Password (8+)</label><input id="nuPass" type="text" minlength="8" required autocomplete="off"></div>
+        <div><label for="nuPass">Password (blank = changeme)</label><input id="nuPass" type="text" autocomplete="off" placeholder="changeme"></div>
         <button type="submit">Add</button>
       </form>
       <p class="msg" id="userMsg" role="status" aria-live="polite"></p>
-      <table><thead><tr><th>Name</th><th>Role</th><th>New password</th><th></th></tr></thead><tbody id="people"></tbody></table>
+      <div class="tablewrap"><table><thead><tr><th>Name</th><th>Role</th><th>Runs</th><th>Reset</th><th>Rename</th><th></th></tr></thead><tbody id="people"></tbody></table></div>
     </section>
     <section id="logsBox" class="hidden">
       <h2 id="logsTitle">Recent problems</h2>
       <pre class="logs" id="logs"></pre>
     </section>
   </div>
+
+  <section id="firstView" class="hidden" style="max-width:480px">
+    <h2>Pick your own password</h2>
+    <p class="hint" id="firstHint">Wizard reset your account. Pick a new password to carry on.</p>
+    <form id="firstForm">
+      <div id="firstNameRow" class="hidden"><label for="firstName">New name (lowercase, like sam)</label><input id="firstName" autocomplete="username"></div>
+      <div style="margin-top:10px"><label for="firstPass">New password (8 or more characters, not changeme)</label><input id="firstPass" type="password" autocomplete="new-password" minlength="8" required></div>
+      <button type="submit" style="margin-top:10px">Save</button>
+      <p class="msg" id="firstMsg" role="status" aria-live="polite"></p>
+    </form>
+  </section>
 
   <section id="accountView" class="hidden" style="max-width:480px">
     <h2>Your password</h2>
@@ -286,6 +302,10 @@
   </section>
 </div>
 
+<dialog id="logsDlg" aria-labelledby="logsDlgTitle">
+  <div class="dlg-head"><h2 id="logsDlgTitle">Recent problems</h2><button class="quiet" onclick="this.closest('dialog').close()" aria-label="Close recent problems">Close</button></div>
+  <pre class="logs" id="logsDlgBody"></pre>
+</dialog>
 <dialog id="upd" aria-labelledby="updTitle">
   <div class="dlg-head"><h2 id="updTitle">Updates</h2><button class="quiet" id="updClose" aria-label="Close updates">Close</button></div>
   <p class="hint" id="updMeta"></p>
@@ -325,8 +345,9 @@ function show(view) {
   $('boardView').classList.toggle('hidden', view !== 'board');
   $('ownerView').classList.toggle('hidden', view !== 'owner');
   $('accountView').classList.toggle('hidden', view !== 'account');
-  $('nav').classList.toggle('hidden', view === 'login');
-  $('menu').classList.toggle('hidden', view === 'login');
+  $('firstView').classList.toggle('hidden', view !== 'first');
+  $('nav').classList.toggle('hidden', view === 'login' || view === 'first');
+  $('menu').classList.toggle('hidden', view === 'login' || view === 'first');
   $('nav').classList.remove('open'); $('menu').setAttribute('aria-expanded', 'false');
   document.querySelectorAll('nav [data-view]').forEach(b => { if (b.dataset.view === view) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current'); });
   clearInterval(timer);
@@ -397,8 +418,9 @@ function row(c) {
     const from = i ? at[i - 1] : -Infinity, to = i === c.beats.length - 1 ? Infinity : at[i];
     const here = marks.filter(m => m.at > from && m.at <= to).sort((x, y) => x.at - y.at);
     const cell = el('i', { class: (b ? '' : 'd') + (here.length ? ' m' : '') });
-    cell.title = (at[i] ? new Date(at[i] * 1000).toLocaleString([], { hour: 'numeric', minute: '2-digit', month: 'short', day: 'numeric' }) + (b ? ' up' : ' down') : '') +
+    cell.dataset.tip = (at[i] ? new Date(at[i] * 1000).toLocaleString([], { hour: 'numeric', minute: '2-digit', month: 'short', day: 'numeric' }) + (b ? ' up' : ' down') : '') +
       here.map(m => '\n' + new Date(m.at * 1000).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) + ' ' + m.who + ': ' + m.text).join('');
+    if (here.length) { cell.tabIndex = 0; cell.setAttribute('role', 'button'); cell.setAttribute('aria-label', cell.dataset.tip); }
     beats.append(cell);
   });
   const msg = el('div', { class: 'rowmsg', role: 'status', 'aria-live': 'polite' });
@@ -410,7 +432,7 @@ function row(c) {
   const extra = c.actions.filter(a => a.action !== 'check_now');
   const owner = me && me.role === 'owner';
   const quietBtn = (label, hours) => el('button', { class: 'quiet', title: 'No alerts or automatic fixes while you work on it', onclick: () => setQuiet(c.id, hours, msg) }, label);
-  const quietBtns = owner && !c.quiet ? [quietBtn('🤫 Quiet', 0)] : [];
+  const quietBtns = (owner || c.runs) && !c.quiet ? [quietBtn('🤫 Quiet', 0)] : [];
   for (const a of c.actions.filter(a => a.action === 'check_now')) acts.append(btn(a));
   if (c.quiet && c.quiet.service === c.id) acts.append(el('button', { class: 'quiet', title: 'It works again: end quiet and turn alerts back on', onclick: () => confirmUp(c.id, msg) }, '✅ Confirmed up'));
   if (c.status === 'up' && extra.length + quietBtns.length) {
@@ -428,7 +450,7 @@ function row(c) {
   return el('div', { class: 'row' },
     el('div', { class: 'st ' + st }, el('i'), words[st]),
     el('div', { class: 'what' },
-      el('div', {}, el('span', { class: 'mst ' + st }, '● ' + words[st]), el('b', {}, c.name + (c.personal ? ' (yours)' : '')), ' ', el('span', { class: 'd' }, c.detail)),
+      el('div', {}, el('span', { class: 'mst ' + st }, '● ' + words[st]), el('b', {}, c.name + (c.personal ? ' (yours)' : '')), c.runs ? el('span', { class: 'pill runs' }, 'you run this') : null, ' ', el('span', { class: 'd' }, c.detail)),
       c.cause ? el('div', { class: 'c' }, '↳ because ' + c.cause + ' is down') : null,
       c.quiet ? el('div', { class: 'q' }, '🤫 ' + (c.quiet.service === '*' ? 'Everything is quiet' : 'Quiet') + (c.quiet.until ? ' until ' + new Date(c.quiet.until * 1000).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : '') + (c.quiet.why ? ': ' + c.quiet.why : '') + (owner ? '' : '. ' + (me.owner_name || 'The owner') + ' is working on it.')) : null,
       c.info.length ? el('div', { class: 'x' }, c.info.join(' · ')) : null,
@@ -527,6 +549,12 @@ async function decide(p, yes, where, buttons = []) {
 }
 
 async function showLogs(c) {
+  if (me.role !== 'owner') {
+    $('logsDlgTitle').textContent = 'Recent problems: ' + c.name; $('logsDlgBody').textContent = 'Loading…'; $('logsDlg').showModal();
+    try { const r = await api('/api/owner/problems', { method: 'POST', body: { service: c.id } }); $('logsDlgBody').textContent = (r.lines || []).join('\n') || 'No log lines.'; }
+    catch (e) { $('logsDlgBody').textContent = e.message; }
+    return;
+  }
   show('owner');
   $('logsBox').classList.remove('hidden');
   $('logsTitle').textContent = 'Recent problems: ' + c.name;
@@ -534,6 +562,28 @@ async function showLogs(c) {
   try { const r = await api('/api/owner/problems', { method: 'POST', body: { service: c.id } }); $('logs').textContent = (r.lines || []).join('\n') || 'No log lines.'; }
   catch (e) { $('logs').textContent = e.message; }
 }
+
+// ---- the bubble over an uptime dot: hover, tap or focus shows what was posted then ----
+const tip = el('div', { class: 'tip', id: 'tip', role: 'tooltip', hidden: true });
+document.body.append(tip);
+let tipFor = null;
+function showTip(cell) {
+  if (!cell || !cell.dataset.tip) { tip.hidden = true; tipFor = null; return; }
+  tipFor = cell;
+  const [head, ...notes] = cell.dataset.tip.split('\n');
+  tip.replaceChildren(el('b', {}, head), ...notes.map(n => el('div', {}, n)));
+  tip.hidden = false;
+  const r = cell.getBoundingClientRect(), w = Math.min(320, window.innerWidth - 32);
+  tip.style.maxWidth = w + 'px';
+  const left = Math.max(16, Math.min(window.innerWidth - tip.offsetWidth - 16, r.left + r.width / 2 - tip.offsetWidth / 2));
+  const top = r.top - tip.offsetHeight - 8 > 8 ? r.top - tip.offsetHeight - 8 : r.bottom + 8;
+  tip.style.left = left + window.scrollX + 'px'; tip.style.top = top + window.scrollY + 'px';
+}
+document.addEventListener('mouseover', e => { const c = e.target.closest && e.target.closest('.beats i'); if (c) showTip(c); else if (tipFor && !e.target.closest('.tip')) showTip(null); });
+document.addEventListener('click', e => { const c = e.target.closest && e.target.closest('.beats i'); if (c && c.dataset.tip) { showTip(c); } else if (!e.target.closest('.tip')) showTip(null); });
+document.addEventListener('focusin', e => { if (e.target.matches && e.target.matches('.beats i')) showTip(e.target); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') showTip(null); });
+window.addEventListener('scroll', () => showTip(null), { passive: true });
 
 // ---- chat: short caveman answers, Explain for the long one ----
 const onlyEmoji = t => /^\p{Extended_Pictographic}[\u{FE0F}\u{200D}\p{Extended_Pictographic}]*$/u.test(t.trim());
@@ -588,8 +638,8 @@ function roomLine(l) {
   const mine = me && l.author === me.name;
   const nick = l.bot ? 'T.I.T.A.N' : l.author;
   const p = el('p', { class: l.bot ? 'bot' : '', 'data-id': l.id },
-    el('span', { class: 'ts' }, '[' + hhmm(l.at) + '] '),
-    el('span', { class: 'nick' + (mine ? ' mine' : '') }, '<' + nick + '> '),
+    el('span', { class: 'ts' }, hhmm(l.at)),
+    el('span', { class: 'nick' + (mine ? ' mine' : '') }, nick),
     l.removed ? el('span', { class: 'gone' }, '(removed by ' + (me.owner_name || 'the owner') + ')') : el('span', { class: 'tx' }, l.text));
   if (me && me.role === 'owner' && !l.removed) p.append(el('button', { class: 'rm', 'aria-label': 'Remove this line', onclick: async () => {
     try { await api('/api/owner/room/' + l.id, { method: 'DELETE' }); p.replaceWith(roomLine({ ...l, removed: true })); } catch (e) { $('irc').append(el('p', { class: 'gone' }, '* ' + e.message)); }
@@ -685,19 +735,31 @@ async function loadOwner() {
       el('td', {}, ago(n.at)), el('td', {}, n.kind.replace('_', ' ')), el('td', {}, n.name), el('td', {}, n.text),
       el('td', {}, el('button', { class: 'quiet small', onclick: async () => { await api('/api/owner/inbox/' + n.id + '/done', { method: 'POST' }); loadOwner(); } }, 'Done')))) :
       [el('tr', {}, el('td', { colspan: 5, class: 'hint' }, 'Nothing waiting.'))]));
-    const people = await api('/api/owner/users');
+    const { users: people, runnable } = await api('/api/owner/users');
+    const names = Object.fromEntries(runnable.map(s => [s.id, s.name]));
     $('people').replaceChildren(...people.map(u => {
+      const self = u.name === me.name;
       const role = el('select', { 'aria-label': 'Role for ' + u.name }, ...['friend', 'family', 'owner'].map(r => { const o = el('option', { value: r }, r); if (r === u.role) o.selected = true; return o; }));
       role.addEventListener('change', () => change(u.name, { role: role.value }));
-      const pw = el('input', { type: 'text', minlength: 8, 'aria-label': 'New password for ' + u.name, autocomplete: 'off' });
-      return el('tr', {}, el('td', {}, u.name), el('td', {}, role),
-        el('td', {}, el('div', { style: 'display:flex;gap:6px' }, pw, el('button', { class: 'quiet small', onclick: () => change(u.name, { password: pw.value }) }, 'Set'))),
-        el('td', {}, u.name === me.name ? '' : el('button', { class: 'quiet small', onclick: () => remove(u.name) }, 'Remove')));
+      const runs = new Set(u.manages || []);
+      const boxes = runnable.map(s => el('label', { class: 'chk' }, el('input', { type: 'checkbox', value: s.id, checked: runs.has(s.id) || null }), ' ' + s.name));
+      const runsBox = u.role === 'owner' ? el('span', { class: 'hint' }, 'everything') : el('details', { class: 'runs' },
+        el('summary', {}, runs.size ? [...runs].map(id => names[id] || id).join(', ') : 'nothing extra'),
+        el('div', { class: 'chks' }, ...boxes),
+        el('button', { class: 'quiet small', onclick: () => change(u.name, { runs: boxes.map(b => b.firstChild).filter(b => b.checked).map(b => b.value) }) }, 'Save'));
+      const nn = el('input', { 'aria-label': 'New name for ' + u.name, autocomplete: 'off', placeholder: 'new name', size: 10 });
+      return el('tr', {}, el('td', {}, u.name, u.must_change ? el('div', { class: 'hint' }, 'waiting to pick a new ' + (u.must_change === 2 ? 'name and password' : 'password')) : null), el('td', {}, role),
+        el('td', {}, runsBox),
+        el('td', {}, self ? el('span', { class: 'hint' }, 'use Account') : el('div', { style: 'display:flex;gap:6px;flex-wrap:wrap' },
+          el('button', { class: 'quiet small', title: 'Password becomes changeme; they pick a new one when they sign in', onclick: () => change(u.name, { reset: 'password' }, 'Reset. Tell ' + u.name + ' to sign in with changeme today.') }, 'Password'),
+          el('button', { class: 'quiet small', title: 'Password becomes changeme; they pick a new name and password when they sign in', onclick: () => change(u.name, { reset: 'name' }, 'Reset. Tell ' + u.name + ' to sign in with changeme today; they will pick a new name too.') }, 'Name + password'))),
+        el('td', {}, self ? '' : el('div', { style: 'display:flex;gap:6px' }, nn, el('button', { class: 'quiet small', onclick: () => change(u.name, { rename: nn.value }) }, 'Rename'))),
+        el('td', {}, self ? '' : el('button', { class: 'quiet small', onclick: () => remove(u.name) }, 'Remove')));
     }));
   } catch (e) { $('userMsg').className = 'msg bad'; $('userMsg').textContent = e.message; }
 }
-async function change(name, body) {
-  try { await api('/api/owner/users/' + encodeURIComponent(name), { method: 'POST', body }); $('userMsg').className = 'msg good'; $('userMsg').textContent = 'Saved ' + name + '.'; }
+async function change(name, body, said) {
+  try { const r = await api('/api/owner/users/' + encodeURIComponent(name), { method: 'POST', body }); $('userMsg').className = 'msg good'; $('userMsg').textContent = said || (r.name && r.name !== name ? 'Renamed ' + name + ' to ' + r.name + '. They sign in with the new name.' : 'Saved ' + name + '.'); }
   catch (e) { $('userMsg').className = 'msg bad'; $('userMsg').textContent = e.message; }
   loadOwner();
 }
@@ -708,11 +770,19 @@ async function remove(name) {
 }
 $('addUser').addEventListener('submit', async ev => {
   ev.preventDefault();
-  try { const r = await api('/api/owner/users', { method: 'POST', body: { name: $('nuName').value, role: $('nuRole').value, password: $('nuPass').value } }); $('userMsg').className = 'msg good'; $('userMsg').textContent = 'Added ' + r.name + '. Give them the password.'; $('addUser').reset(); }
+  try { const r = await api('/api/owner/users', { method: 'POST', body: { name: $('nuName').value, role: $('nuRole').value, password: $('nuPass').value } }); $('userMsg').className = 'msg good'; $('userMsg').textContent = 'Added ' + r.name + '. ' + (r.temp ? 'Tell them to sign in with changeme today; they pick their own password then.' : 'Give them the password.'); $('addUser').reset(); }
   catch (e) { $('userMsg').className = 'msg bad'; $('userMsg').textContent = e.message; }
   loadOwner();
 });
 
+$('firstForm').addEventListener('submit', async ev => {
+  ev.preventDefault();
+  try {
+    const r = await api('/api/first', { method: 'POST', body: { name: $('firstName').value, password: $('firstPass').value } });
+    $('firstMsg').className = 'msg good'; $('firstMsg').textContent = r.result; $('firstForm').reset();
+    $('lname').value = r.name; setTimeout(() => show('login'), 1500);
+  } catch (e) { $('firstMsg').className = 'msg bad'; $('firstMsg').textContent = e.message; }
+});
 $('pwForm').addEventListener('submit', async ev => {
   ev.preventDefault();
   try { const r = await api('/api/password', { method: 'POST', body: { old: $('pwOld').value, new: $('pwNew').value } }); $('pwMsg').className = 'msg good'; $('pwMsg').textContent = r.result; setTimeout(() => show('login'), 1500); }
@@ -731,6 +801,12 @@ $('menu').addEventListener('click', () => { const o = $('nav').classList.toggle(
 
 async function start() {
   try { me = await api('/api/me'); } catch { show('login'); return; }
+  if (me.must_change) {
+    $('firstNameRow').classList.toggle('hidden', me.must_change !== 2);
+    $('firstName').required = me.must_change === 2;
+    $('firstHint').textContent = (me.owner_name || 'The owner') + ' reset your account. ' + (me.must_change === 2 ? 'Pick a new name and password' : 'Pick a new password') + ' to carry on.';
+    show('first'); return;
+  }
   $('whoami').textContent = me.name + ' · ' + me.role;
   $('menuWho').textContent = me.name;
   $('ownerTab').classList.toggle('hidden', me.role !== 'owner');

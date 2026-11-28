@@ -22,9 +22,11 @@ import (
 
 // SetQuiet makes a service ("*" or "all" = everything) quiet for hours
 // (0 = until lifted), or lifts it when hours < 0. Owner only.
+var errNotQuieter = errors.New("only the owner, or whoever runs it, can make it quiet")
+
 func (a *App) SetQuiet(ctx context.Context, u agent.User, id string, hours float64, why string) (string, error) {
-	if u.Role != config.Owner || u.Room {
-		return "", errors.New("only the owner can make things quiet")
+	if u.Room {
+		return "", errNotQuieter
 	}
 	id = strings.TrimSpace(id)
 	name := "Everything"
@@ -37,6 +39,10 @@ func (a *App) SetQuiet(ctx context.Context, u agent.User, id string, hours float
 			return "", errNoService
 		}
 		id, name = s.ID, s.Name
+	}
+	// The owner quiets anything; someone handed a service quiets just that.
+	if u.Role != config.Owner && (id == "*" || !u.Runs(id)) {
+		return "", errNotQuieter
 	}
 	if hours < 0 {
 		return a.liftQuiet(ctx, id, name, "✅ Quiet ended by "+u.Name+": alerts and automatic fixes are back on.")
@@ -81,7 +87,7 @@ func (a *App) quietPost(w http.ResponseWriter, r *http.Request) {
 	}
 	msg, err := a.SetQuiet(r.Context(), caller(r), b.Service, b.Hours, b.Why)
 	if err != nil {
-		fail(w, 400, err.Error())
+		fail(w, quietCode(err), err.Error())
 		return
 	}
 	writeJSON(w, 200, map[string]string{"result": msg})
@@ -90,10 +96,17 @@ func (a *App) quietPost(w http.ResponseWriter, r *http.Request) {
 func (a *App) quietDelete(w http.ResponseWriter, r *http.Request) {
 	msg, err := a.SetQuiet(r.Context(), caller(r), r.PathValue("service"), -1, "")
 	if err != nil {
-		fail(w, 400, err.Error())
+		fail(w, quietCode(err), err.Error())
 		return
 	}
 	writeJSON(w, 200, map[string]string{"result": msg})
+}
+
+func quietCode(err error) int {
+	if errors.Is(err, errNotQuieter) {
+		return 403
+	}
+	return 400
 }
 
 // liftQuiet ends quiet on id and says so on the card.
@@ -125,7 +138,7 @@ func (a *App) ConfirmUp(ctx context.Context, u agent.User, id string) (string, e
 	if need == "" {
 		need = config.Owner
 	}
-	if !config.AtLeast(u.Role, need) {
+	if !config.AtLeast(u.Role, need) && !u.Runs(s.ID) {
 		return "", fmt.Errorf("only someone who can fix %s can confirm it's up", s.Name)
 	}
 	if r, ok := a.Runner.Last(s.ID); ok && !r.OK {

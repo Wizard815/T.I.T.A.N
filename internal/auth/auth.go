@@ -32,6 +32,7 @@ const (
 
 var (
 	ErrBadLogin = errors.New("That name and password don't match. Check the spelling, or ask Wizard to reset your password.")
+	ErrResetOld = errors.New("That reset ran out (they last a day). Ask Wizard to reset it again.")
 	ErrLocked   = errors.New("Too many wrong tries. Wait 15 minutes, or ask Wizard to reset your password.")
 	namePattern = regexp.MustCompile(`^[a-z][a-z0-9_-]{1,31}$`)
 )
@@ -82,7 +83,17 @@ func CheckName(name string) (string, error) {
 	return name, nil
 }
 
+// TempPassword is what an owner's reset sets. It only works until the
+// person picks their own, and for a day at most.
+const TempPassword = "changeme"
+
+// ResetFor is how long a reset's "changeme" works.
+const ResetFor = 24 * time.Hour
+
 func CheckPassword(pw string) error {
+	if strings.EqualFold(strings.TrimSpace(pw), TempPassword) {
+		return errors.New("Pick your own password, not changeme.")
+	}
 	if len([]rune(pw)) < MinPass {
 		return fmt.Errorf("Use a password of at least %d characters.", MinPass)
 	}
@@ -136,6 +147,9 @@ func (a *Auth) Login(ctx context.Context, name, pw string) (string, *db.User, er
 			return "", nil, ErrLocked
 		}
 		return "", nil, ErrBadLogin
+	}
+	if u.MustChange > 0 && u.ResetUntil > 0 && now.Unix() > u.ResetUntil {
+		return "", nil, ErrResetOld
 	}
 	if u.Failed > 0 || u.LockedUntil > 0 {
 		_ = a.DB.SetFailed(ctx, u.Name, 0, 0)

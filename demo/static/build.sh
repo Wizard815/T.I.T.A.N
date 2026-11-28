@@ -8,7 +8,7 @@ here=$(cd "$(dirname "$0")" && pwd)
 root=$(cd "$here/../.." && pwd)
 out=${1:-$here/titan-demo.html}
 page=$root/internal/web/page.html
-banner='<div class="demo-bar" role="note">Demo: a made-up homelab on a one-minute loop. Sign in as <b>wizard</b> (owner), <b>sam</b> (family) or <b>alex</b> (friend), any password.</div>'
+banner='<div class="demo-bar" role="note">Demo: a made-up homelab on a one-minute loop. Sign in as <b>wizard</b> (owner), <b>sam</b> (family), <b>alex</b> (friend) or <b>kai</b> (runs the game servers), any password.</div>'
 style='<style>.demo-bar{background:#2a2410;color:#f5e6b8;font:13px/1.4 system-ui,sans-serif;padding:6px 16px;text-align:center}.demo-bar b{color:#fff}</style>'
 html=$(cat "$page")
 html=${html/<title>T.I.T.A.N<\/title>/<title>T.I.T.A.N demo</title>$style}

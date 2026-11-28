@@ -9,18 +9,20 @@
   const into = t => t - loopStart(t);
 
   // ---- people ----
-  const users = { wizard: 'owner', sam: 'family', alex: 'friend' };
+  // kai is Wizard's brother: a friend who was handed the game servers to run.
+  const users = { wizard: { role: 'owner', runs: [] }, sam: { role: 'family', runs: [] }, alex: { role: 'friend', runs: [] }, kai: { role: 'friend', runs: ['enshrouded', 'valheim'] } };
   let who = null;
   try { who = sessionStorage.getItem('titan-demo-who'); } catch {}
   if (who && !users[who]) who = null;
-  const role = () => users[who];
+  const role = () => users[who] && users[who].role;
+  const runs = id => !!(users[who] && users[who].runs.includes(id));
   const rank = { friend: 1, family: 2, owner: 3 };
   const atLeast = (r, need) => rank[r] >= rank[need];
 
   // ---- the services ----
   const S = [
     { id: 'enshrouded', name: 'Enshrouded', group: 'Games', audience: 'friend', actions: ['start_service', 'restart_service'], join: "Server: Wizard's World at 192.168.20.5:15637. The password is pinned in Discord #games." },
-    { id: 'valheim', name: 'Valheim', group: 'Games', audience: 'friend', actions: ['restart_service'] },
+    { id: 'valheim', name: 'Valheim', group: 'Games', audience: 'friend', actions: ['restart_service', 'recent_problems'], fixBy: 'owner' },
     { id: 'plex', name: 'Plex', group: 'Media', audience: 'friend', actions: ['restart_service'], fixBy: 'family' },
     { id: 'media', name: 'Media pipeline', group: 'Media', audience: 'family', actions: [] },
     { id: 'faith', name: 'FAITH', group: 'Family', audience: 'family', actions: ['restart_service', 'recent_problems'] },
@@ -33,8 +35,8 @@
     ...['binhex-readarr', 'binhex-sonarr', 'binhex-radarr', 'sabnzbd', 'tautulli', 'overseer', 'hermes-agent', 'hermes-studio', 'odysseus-ntfy-1', 'croniclev2', 'homeassistant', 'uptime-kuma'].map(n => ({ id: n, name: n, group: 'Containers', audience: 'owner', actions: [], found: true })),
   ];
   const byId = Object.fromEntries(S.map(s => [s.id, s]));
-  const sees = s => role() && atLeast(role(), s.audience);
-  const mayFix = s => atLeast(role(), s.fixBy || s.audience);
+  const sees = s => role() && (runs(s.id) || atLeast(role(), s.audience));
+  const mayFix = s => runs(s.id) || atLeast(role(), s.fixBy || s.audience);
 
   // What the people in the demo did this loop (cleared when the loop restarts).
   let did = { loop: 0, started: {}, synced: false, quiet: {}, working: {} };
@@ -139,17 +141,17 @@
     const marks = updates.filter(u => u.service === s.id && u.at >= beatAt[0]).map(u => ({ at: u.at, who: u.bot ? 'T.I.T.A.N' : u.author, text: u.text }));
     const actions = [{ action: 'check_now', label: 'Check again' }];
     for (const a of s.actions) {
-      if (a === 'recent_problems' && role() !== 'owner') continue;
+      if (a === 'recent_problems' && role() !== 'owner' && !runs(s.id)) continue;
       if (a !== 'recent_problems' && !mayFix(s)) continue;
       actions.push({ action: a, label: { start_service: 'Start', restart_service: 'Restart', run_sync: 'Run sync', recent_problems: 'Recent problems' }[a] });
     }
     let quiet = did.quiet[s.id] ? { service: s.id, ...did.quiet[s.id] } : did.quiet['*'] ? { service: '*', ...did.quiet['*'] } : null;
-    if (quiet && role() !== 'owner') quiet = { service: quiet.service, until: quiet.until };
+    if (quiet && role() !== 'owner' && !runs(s.id)) quiet = { service: quiet.service, until: quiet.until };
     return {
       id: s.id, name: s.name, group: s.group, status: ok ? 'up' : 'down', detail, checked_at: Math.floor(t) - (Math.floor(t) % 3), ms: 40,
       uptime: { '24h': Math.round(up * 10) / 10, '7d': Math.min(100, Math.round((up + 2) * 10) / 10), '30d': 99.2 },
       beat_at: beatAt, beats, marks, info: info(s.id, t), updates_24h: updates.filter(u => u.service === s.id && u.at > t - 86400).length,
-      working: did.working[s.id] || [], actions, found: !!s.found, quiet: quiet || undefined,
+      working: did.working[s.id] || [], actions, found: !!s.found, runs: runs(s.id) || undefined, quiet: quiet || undefined,
     };
   }
 
@@ -239,20 +241,38 @@
     faith: ['[server] FAITH listening on :8097', '[harness] model titan-agent answered in 2.1 s', '[server] ERROR JavaScript heap out of memory', '[auth] token=[removed] refreshed', '[server] Restarting after a crash'],
     plex: ['Transcoder: 3 sessions', 'Library scan finished'],
   };
+  let m0;
   async function route(method, path, body) {
     play();
     const url = new URL(path, location.href), p = url.pathname;
     if (p === '/api/login' && method === 'POST') {
       const name = String(body.name || '').trim().toLowerCase();
-      if (!users[name]) return no(401, 'Try wizard (owner), sam (family) or alex (friend). Any password works in the demo.');
+      if (!users[name]) return no(401, 'Try wizard (owner), sam (family), alex (friend) or kai (runs the game servers). Any password works in the demo.');
+      if (users[name].must && String(body.password).toLowerCase() !== 'changeme') return no(401, "That name and password don't match. After a reset the password is changeme.");
       who = name; try { sessionStorage.setItem('titan-demo-who', who); } catch {}
-      return ok({ name, role: users[name] });
+      return ok({ name, role: users[name].role });
     }
-    if (!who) return no(401, 'Sign in first.');
+    if (!who || !users[who]) { who = null; return no(401, 'Sign in first.'); }
     const r = role();
-    if (p.startsWith('/api/owner/') && r !== 'owner') return no(403, 'That page is the owner\'s.');
+    if (users[who].must && !['/api/me', '/api/logout', '/api/first'].includes(p)) return no(403, 'Pick a new password first.');
+    if (p === '/api/first') {
+      const pw = String(body.password || '');
+      if (pw.length < 8 || pw.toLowerCase() === 'changeme') return no(400, pw.length < 8 ? 'Use a password of at least 8 characters.' : 'Pick your own password, not changeme.');
+      let name = who;
+      if (users[who].must === 2) {
+        const nn = String(body.name || '').trim().toLowerCase();
+        if (!/^[a-z][a-z0-9_-]{1,31}$/.test(nn) || nn === 'changeme') return no(400, 'Pick a name: 2-32 lowercase letters, digits, - or _, starting with a letter.');
+        if (nn !== who && users[nn]) return no(400, "There's already an account called " + nn + '.');
+        if (nn !== who) { users[nn] = users[who]; delete users[who]; name = nn; }
+      }
+      users[name].must = 0; who = null; try { sessionStorage.removeItem('titan-demo-who'); } catch {}
+      return ok({ name, result: 'Saved. Sign in as ' + name + ' with your new password.' });
+    }
+    if (p === '/api/owner/problems' && method === 'POST' && runs(body.service)) return ok({ lines: logs[body.service] || ['No log lines in the demo for this one.'] });
+    if ((p === '/api/owner/quiet' && method === 'POST' && runs(body.service)) || ((m0 = p.match(/^\/api\/owner\/quiet\/(.+)$/)) && runs(decodeURIComponent(m0[1])))) { /* falls through to the quiet routes below */ }
+    else if (p.startsWith('/api/owner/') && r !== 'owner') return no(403, 'Only Wizard can do that.');
     if (p === '/api/logout') { who = null; try { sessionStorage.removeItem('titan-demo-who'); } catch {} return ok({ ok: true }); }
-    if (p === '/api/me') return ok({ name: who, role: r, owner_name: 'Wizard', faith_url: '', server_view: r === 'owner' });
+    if (p === '/api/me') return ok({ name: who, role: r, owner_name: 'Wizard', faith_url: '', server_view: r === 'owner', must_change: users[who].must || 0, runs: users[who].runs.map(id => ({ id, name: byId[id].name })) });
     if (p === '/api/board') return ok({ services: visible().map(card) });
     if (p === '/api/chat') return ok(helper(String(body.message || ''), false));
     if (p === '/api/explain') return ok({ reply: lastLong || 'Nothing to explain yet.' });
@@ -332,19 +352,31 @@
     if (p === '/api/owner/inbox') return ok(notes.map(n => ({ ...n })));
     if ((m = p.match(/^\/api\/owner\/inbox\/(\d+)\/done$/))) { const i = notes.findIndex(n => n.id === +m[1]); if (i >= 0) notes.splice(i, 1); return ok({ ok: true }); }
     if (p === '/api/owner/problems') return ok({ lines: logs[body.service] || ['No log lines in the demo for this one.'] });
-    if (p === '/api/owner/users' && method === 'GET') return ok(Object.entries(users).map(([name, role]) => ({ name, role })));
+    if (p === '/api/owner/users' && method === 'GET') return ok({ users: Object.entries(users).map(([name, u]) => ({ name, role: u.role, manages: u.runs, must_change: u.must || 0 })), runnable: S.filter(s => !s.found).map(s => ({ id: s.id, name: s.name })) });
     if (p === '/api/owner/users' && method === 'POST') {
       const name = String(body.name || '').trim().toLowerCase();
       if (!/^[a-z0-9_-]{2,32}$/.test(name)) return no(400, 'Names are 2 to 32 letters, digits, - or _.');
       if (users[name]) return no(400, name + ' already has an account.');
-      users[name] = body.role || 'friend'; return ok({ name });
+      const temp = !String(body.password || '').trim();
+      users[name] = { role: body.role || 'friend', runs: [], must: temp ? 1 : 0 }; return ok({ name, temp });
     }
     if ((m = p.match(/^\/api\/owner\/users\/(.+)$/))) {
       const name = decodeURIComponent(m[1]);
       if (!users[name]) return no(404, 'No such person.');
       if (method === 'DELETE') { if (name === who) return no(400, "You can't remove yourself."); delete users[name]; return ok({ ok: true }); }
-      if (body.role) users[name] = body.role;
-      return ok({ ok: true });
+      if (body.role) users[name].role = body.role;
+      if (body.runs) users[name].runs = body.runs.filter(id => byId[id] && !byId[id].found);
+      if (body.password) users[name].must = 0;
+      if (body.reset) { if (name === who) return no(400, 'Change your own password under Account instead.'); users[name].must = body.reset === 'name' ? 2 : 1; }
+      let out = name;
+      if (body.rename) {
+        const nn = String(body.rename).trim().toLowerCase();
+        if (!/^[a-z][a-z0-9_-]{1,31}$/.test(nn)) return no(400, 'Names are 2-32 lowercase letters, digits, - or _, starting with a letter (like sam).');
+        if (users[nn]) return no(400, "there's already an account called " + nn);
+        if (name === who) return no(400, 'Rename yourself from another owner account.');
+        users[nn] = users[name]; delete users[name]; out = nn;
+      }
+      return ok({ ok: true, name: out });
     }
     if (p === '/api/password') return ok({ result: 'Password changed (not really: this is the demo). Sign in again.' });
     return no(404, 'The demo has no ' + method + ' ' + p + '.');

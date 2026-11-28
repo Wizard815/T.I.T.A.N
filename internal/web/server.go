@@ -70,10 +70,11 @@ func (a *App) Handler() http.Handler {
 	m.Handle("POST /api/room", a.signedIn("", a.roomPost))
 	m.Handle("DELETE /api/owner/room/{id}", a.signedIn(config.Owner, a.roomRemove))
 	m.Handle("POST /api/password", a.signedIn("", a.ownPassword))
+	m.Handle("POST /api/first", a.signedIn("", a.first))
 
 	m.Handle("GET /api/owner/inbox", a.signedIn(config.Owner, a.inbox))
 	m.Handle("POST /api/owner/inbox/{id}/done", a.signedIn(config.Owner, a.inboxDone))
-	m.Handle("POST /api/owner/problems", a.signedIn(config.Owner, a.problems))
+	m.Handle("POST /api/owner/problems", a.signedIn("", a.problems)) // the owner, or whoever runs that service
 	m.Handle("GET /api/owner/users", a.signedIn(config.Owner, a.users))
 	m.Handle("POST /api/owner/users", a.signedIn(config.Owner, a.addUser))
 	m.Handle("POST /api/owner/users/{name}", a.signedIn(config.Owner, a.changeUser))
@@ -82,8 +83,8 @@ func (a *App) Handler() http.Handler {
 	m.Handle("GET /api/server", a.signedIn("", a.server))
 	m.Handle("GET /api/activity", a.signedIn("", a.activity))
 	m.Handle("POST /api/confirm/{service}", a.signedIn("", a.confirmUp))
-	m.Handle("POST /api/owner/quiet", a.signedIn(config.Owner, a.quietPost))
-	m.Handle("DELETE /api/owner/quiet/{service}", a.signedIn(config.Owner, a.quietDelete))
+	m.Handle("POST /api/owner/quiet", a.signedIn("", a.quietPost))               // SetQuiet checks: the owner, or whoever runs it
+	m.Handle("DELETE /api/owner/quiet/{service}", a.signedIn("", a.quietDelete)) // same
 	m.Handle("POST /api/hooks/quiet", a.hookAuth(a.quietPost))
 	m.Handle("DELETE /api/hooks/quiet/{service}", a.hookAuth(a.quietDelete))
 	m.Handle("GET /api/hooks/status", a.hookAuth(a.hookStatus))
@@ -110,11 +111,18 @@ func (a *App) signedIn(role string, h http.HandlerFunc) http.Handler {
 			fail(w, 401, "Your sign-in has ended. Sign in again.")
 			return
 		}
+		// After an owner's reset, the only thing to do is pick a new
+		// password (and name).
+		if u.MustChange > 0 && r.URL.Path != "/api/me" && r.URL.Path != "/api/logout" && r.URL.Path != "/api/first" {
+			fail(w, 403, "Pick a new password first.")
+			return
+		}
 		if role != "" && !config.AtLeast(u.Role, role) {
 			fail(w, 403, "Only "+a.OwnerName+" can do that.")
 			return
 		}
-		h(w, r.WithContext(context.WithValue(r.Context(), ctxKey{}, agent.User{Name: u.Name, Role: u.Role})))
+		runs, _ := a.DB.Grants(r.Context(), u.Name)
+		h(w, r.WithContext(context.WithValue(r.Context(), ctxKey{}, agent.User{Name: u.Name, Role: u.Role, Manages: runs, MustChange: u.MustChange})))
 	})
 }
 
@@ -189,7 +197,13 @@ func (a *App) logout(w http.ResponseWriter, r *http.Request) {
 
 func (a *App) me(w http.ResponseWriter, r *http.Request) {
 	u := userFrom(r)
-	writeJSON(w, 200, map[string]any{"name": u.Name, "role": u.Role, "owner_name": a.OwnerName, "faith_url": a.FaithLink(u), "server_view": a.ServerView(u)})
+	runs := []map[string]string{}
+	for _, id := range u.Manages {
+		if s, ok := a.find(id); ok {
+			runs = append(runs, map[string]string{"id": s.ID, "name": s.Name})
+		}
+	}
+	writeJSON(w, 200, map[string]any{"name": u.Name, "role": u.Role, "owner_name": a.OwnerName, "faith_url": a.FaithLink(u), "server_view": a.ServerView(u), "must_change": u.MustChange, "runs": runs})
 }
 
 func (a *App) board(w http.ResponseWriter, r *http.Request) {
@@ -323,6 +337,10 @@ func (a *App) problems(w http.ResponseWriter, r *http.Request) {
 	var b struct{ Service string }
 	readJSON(r, &b)
 	s, ok := a.find(b.Service)
+	if u := userFrom(r); u.Role != config.Owner && !u.Runs(s.ID) {
+		fail(w, 403, "Only "+a.OwnerName+" can do that.")
+		return
+	}
 	if !ok || s.Container == "" {
 		fail(w, 404, "That service has no container to read.")
 		return
@@ -333,62 +351,6 @@ func (a *App) problems(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, 200, map[string]any{"lines": lines})
-}
-
-func (a *App) users(w http.ResponseWriter, r *http.Request) {
-	u, err := a.DB.Users(r.Context())
-	if err != nil {
-		fail(w, 500, err.Error())
-		return
-	}
-	if u == nil {
-		u = []db.User{}
-	}
-	writeJSON(w, 200, u)
-}
-
-func (a *App) addUser(w http.ResponseWriter, r *http.Request) {
-	var b struct{ Name, Role, Password string }
-	if readJSON(r, &b) != nil {
-		fail(w, 400, "Send a name, role and password.")
-		return
-	}
-	name, err := a.Auth.AddUser(r.Context(), b.Name, b.Role, b.Password)
-	if err != nil {
-		fail(w, 400, err.Error())
-		return
-	}
-	writeJSON(w, 200, map[string]string{"name": name})
-}
-
-func (a *App) changeUser(w http.ResponseWriter, r *http.Request) {
-	var b struct{ Role, Password string }
-	if readJSON(r, &b) != nil {
-		fail(w, 400, "Send a role or a password.")
-		return
-	}
-	name := r.PathValue("name")
-	if b.Role != "" {
-		if !config.ValidRole(b.Role) {
-			fail(w, 400, "Role must be friend, family or owner.")
-			return
-		}
-		if name == userFrom(r).Name && b.Role != config.Owner {
-			fail(w, 400, "You can't take away your own owner role. Make another owner first.")
-			return
-		}
-		if err := a.DB.SetRole(r.Context(), name, b.Role); err != nil {
-			fail(w, 404, "There's no account called "+name+".")
-			return
-		}
-	}
-	if b.Password != "" {
-		if err := a.setPassword(r.Context(), name, b.Password); err != nil {
-			fail(w, 400, err.Error())
-			return
-		}
-	}
-	writeJSON(w, 200, map[string]bool{"ok": true})
 }
 
 func (a *App) removeUser(w http.ResponseWriter, r *http.Request) {

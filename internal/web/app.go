@@ -74,11 +74,35 @@ func (a *App) sees(s config.Service, u agent.User) bool {
 	if u.Room && s.Person != "" {
 		return false
 	}
+	if s.Person == "" && s.Check.Found == "" && u.Runs(s.ID) {
+		return true
+	}
 	return s.Visible(u.Role, u.Name)
 }
 
+// allows is the one fix rule. Someone handed a service to run gets every
+// fix listed on it, as the owner would; the allowlist still decides what
+// those are.
 func (a *App) allows(s config.Service, u agent.User, act string) bool {
-	return a.sees(s, u) && s.Allows(u.Role, u.Name, act)
+	if !a.sees(s, u) {
+		return false
+	}
+	if s.Person == "" && s.Check.Found == "" && u.Runs(s.ID) {
+		return s.Allows(config.Owner, u.Name, act)
+	}
+	return s.Allows(u.Role, u.Name, act)
+}
+
+// Runnable lists the services an owner may hand to someone to run: listed
+// ones, not personal, not found containers.
+func (a *App) Runnable() []config.Service {
+	var out []config.Service
+	for _, s := range a.Cfg.Services {
+		if s.Person == "" {
+			out = append(out, s)
+		}
+	}
+	return out
 }
 
 func (a *App) find(id string) (config.Service, bool) {
@@ -112,6 +136,7 @@ type Card struct {
 	Uptime    map[string]float64 `json:"uptime"`          // "24h", "7d", "30d": 0-100, or -1
 	Quiet     *db.Quiet          `json:"quiet,omitempty"` // the owner is working on it
 	BeatAt    []int64            `json:"beat_at"`         // when each beat was checked
+	Runs      bool               `json:"runs,omitempty"`  // the owner handed this person the service to run
 	Marks     []Mark             `json:"marks"`           // updates and log lines posted in the beats' time span
 	Beats     []int              `json:"beats"`           // newest last: 1 up, 0 down
 	Info      []string           `json:"info"`            // extra facts ("2 people watching")
@@ -155,7 +180,8 @@ func (a *App) Board(ctx context.Context, u agent.User) ([]Card, error) {
 		} else if q, ok := quiets["*"]; ok {
 			c.Quiet = &q
 		}
-		if c.Quiet != nil && u.Role != config.Owner {
+		c.Runs = u.Runs(s.ID)
+		if c.Quiet != nil && u.Role != config.Owner && !c.Runs {
 			c.Quiet = &db.Quiet{Service: c.Quiet.Service, Until: c.Quiet.Until} // who and why are the owner's
 		}
 		c.Updates, c.Working = counts[s.ID], working[s.ID]

@@ -28,6 +28,11 @@ CREATE TABLE IF NOT EXISTS users (
   locked_until INTEGER NOT NULL DEFAULT 0,
   created_at INTEGER NOT NULL
 );
+CREATE TABLE IF NOT EXISTS grants (
+  name TEXT NOT NULL,            -- an account that runs one service
+  service TEXT NOT NULL,
+  PRIMARY KEY (name, service)
+);
 CREATE TABLE IF NOT EXISTS sessions (
   hash TEXT PRIMARY KEY,
   name TEXT NOT NULL REFERENCES users(name) ON DELETE CASCADE,
@@ -115,7 +120,10 @@ func Open(path string) (*DB, error) {
 	if _, err := s.Exec(schema); err != nil {
 		return nil, fmt.Errorf("can't set up the database at %s: %w", path, err)
 	}
-	s.Exec(`ALTER TABLE quiet ADD COLUMN since INTEGER NOT NULL DEFAULT 0`) // databases from before "since"; fails harmlessly when it's there
+	// Columns added later; each fails harmlessly when it's already there.
+	s.Exec(`ALTER TABLE quiet ADD COLUMN since INTEGER NOT NULL DEFAULT 0`)
+	s.Exec(`ALTER TABLE users ADD COLUMN must_change INTEGER NOT NULL DEFAULT 0`)
+	s.Exec(`ALTER TABLE users ADD COLUMN reset_until INTEGER NOT NULL DEFAULT 0`)
 	return &DB{s}, nil
 }
 
@@ -128,7 +136,19 @@ type User struct {
 	Failed      int    `json:"-"`
 	LockedUntil int64  `json:"-"`
 	CreatedAt   int64  `json:"created_at"`
+	// MustChange is set by an owner's reset: 1 = pick a new password at the
+	// next sign-in, 2 = a new name too. ResetUntil is when "changeme" stops
+	// working, so a forgotten reset can't be picked up by someone else later.
+	MustChange int      `json:"must_change"`
+	ResetUntil int64    `json:"-"`
+	Manages    []string `json:"manages"` // services this account runs (see grants)
 }
+
+// Must-change modes.
+const (
+	ChangePassword = 1
+	ChangeName     = 2 // a new name and a new password
+)
 
 func (d *DB) AddUser(ctx context.Context, name, role, hash string) error {
 	_, err := d.ExecContext(ctx, `INSERT INTO users (name, role, pw_hash, created_at) VALUES (?, ?, ?, ?)`, name, role, hash, time.Now().Unix())
@@ -140,8 +160,8 @@ func (d *DB) AddUser(ctx context.Context, name, role, hash string) error {
 
 func (d *DB) GetUser(ctx context.Context, name string) (*User, error) {
 	u := &User{}
-	err := d.QueryRowContext(ctx, `SELECT name, role, pw_hash, failed, locked_until, created_at FROM users WHERE name = ?`, name).
-		Scan(&u.Name, &u.Role, &u.Hash, &u.Failed, &u.LockedUntil, &u.CreatedAt)
+	err := d.QueryRowContext(ctx, `SELECT name, role, pw_hash, failed, locked_until, created_at, must_change, reset_until FROM users WHERE name = ?`, name).
+		Scan(&u.Name, &u.Role, &u.Hash, &u.Failed, &u.LockedUntil, &u.CreatedAt, &u.MustChange, &u.ResetUntil)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
 	}
@@ -149,7 +169,7 @@ func (d *DB) GetUser(ctx context.Context, name string) (*User, error) {
 }
 
 func (d *DB) Users(ctx context.Context) ([]User, error) {
-	rows, err := d.QueryContext(ctx, `SELECT name, role, created_at FROM users ORDER BY name`)
+	rows, err := d.QueryContext(ctx, `SELECT name, role, created_at, must_change FROM users ORDER BY name`)
 	if err != nil {
 		return nil, err
 	}
@@ -157,7 +177,7 @@ func (d *DB) Users(ctx context.Context) ([]User, error) {
 	var out []User
 	for rows.Next() {
 		var u User
-		if err := rows.Scan(&u.Name, &u.Role, &u.CreatedAt); err != nil {
+		if err := rows.Scan(&u.Name, &u.Role, &u.CreatedAt, &u.MustChange); err != nil {
 			return nil, err
 		}
 		out = append(out, u)
@@ -177,7 +197,7 @@ func (d *DB) SetFailed(ctx context.Context, name string, failed int, lockedUntil
 }
 
 func (d *DB) SetPassword(ctx context.Context, name, hash string) error {
-	r, err := d.ExecContext(ctx, `UPDATE users SET pw_hash = ?, failed = 0, locked_until = 0 WHERE name = ?`, hash, name)
+	r, err := d.ExecContext(ctx, `UPDATE users SET pw_hash = ?, failed = 0, locked_until = 0, must_change = 0, reset_until = 0 WHERE name = ?`, hash, name)
 	if err != nil {
 		return err
 	}
@@ -200,6 +220,7 @@ func (d *DB) SetRole(ctx context.Context, name, role string) error {
 }
 
 func (d *DB) RemoveUser(ctx context.Context, name string) error {
+	d.ExecContext(ctx, `DELETE FROM grants WHERE name = ?`, name)
 	r, err := d.ExecContext(ctx, `DELETE FROM users WHERE name = ?`, name)
 	if err != nil {
 		return err
@@ -208,6 +229,97 @@ func (d *DB) RemoveUser(ctx context.Context, name string) error {
 		return ErrNotFound
 	}
 	return nil
+}
+
+// Reset puts a temporary password hash on an account and signs it out
+// everywhere. mode is ChangePassword or ChangeName.
+func (d *DB) Reset(ctx context.Context, name, hash string, mode int, until time.Time) error {
+	r, err := d.ExecContext(ctx, `UPDATE users SET pw_hash = ?, must_change = ?, reset_until = ?, failed = 0, locked_until = 0 WHERE name = ?`, hash, mode, until.Unix(), name)
+	if err != nil {
+		return err
+	}
+	if n, _ := r.RowsAffected(); n == 0 {
+		return ErrNotFound
+	}
+	_, err = d.ExecContext(ctx, `DELETE FROM sessions WHERE name = ?`, name)
+	return err
+}
+
+// Rename moves an account, and everything that names it, to a new name.
+// Its sessions end: sign in again with the new name.
+func (d *DB) Rename(ctx context.Context, old, name string) error {
+	tx, err := d.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	var n int
+	if err := tx.QueryRowContext(ctx, `SELECT count(*) FROM users WHERE name = ?`, name).Scan(&n); err != nil {
+		return err
+	}
+	if n > 0 {
+		return fmt.Errorf("there's already an account called %s", name)
+	}
+	if _, err := tx.ExecContext(ctx, `DELETE FROM sessions WHERE name = ?`, old); err != nil {
+		return err
+	}
+	r, err := tx.ExecContext(ctx, `UPDATE users SET name = ? WHERE name = ?`, name, old)
+	if err != nil {
+		return err
+	}
+	if n, _ := r.RowsAffected(); n == 0 {
+		return ErrNotFound
+	}
+	for _, q := range []string{
+		`UPDATE grants SET name = ? WHERE name = ?`,
+		`UPDATE working SET name = ? WHERE name = ?`,
+		`UPDATE proposals SET name = ? WHERE name = ?`,
+		`UPDATE updates SET author = ? WHERE author = ?`,
+		`UPDATE room SET author = ? WHERE author = ?`,
+		`UPDATE room SET for_name = ? WHERE for_name = ?`,
+		`UPDATE quiet SET by = ? WHERE by = ?`,
+	} {
+		if _, err := tx.ExecContext(ctx, q, name, old); err != nil {
+			return err
+		}
+	}
+	return tx.Commit()
+}
+
+// Grants lists the services an account runs.
+func (d *DB) Grants(ctx context.Context, name string) ([]string, error) {
+	rows, err := d.QueryContext(ctx, `SELECT service FROM grants WHERE name = ? ORDER BY service`, name)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []string{}
+	for rows.Next() {
+		var s string
+		if err := rows.Scan(&s); err != nil {
+			return nil, err
+		}
+		out = append(out, s)
+	}
+	return out, rows.Err()
+}
+
+// SetGrants replaces the services an account runs.
+func (d *DB) SetGrants(ctx context.Context, name string, services []string) error {
+	tx, err := d.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if _, err := tx.ExecContext(ctx, `DELETE FROM grants WHERE name = ?`, name); err != nil {
+		return err
+	}
+	for _, s := range services {
+		if _, err := tx.ExecContext(ctx, `INSERT INTO grants (name, service) VALUES (?, ?) ON CONFLICT DO NOTHING`, name, s); err != nil {
+			return err
+		}
+	}
+	return tx.Commit()
 }
 
 // ---- sessions (only the hash is stored) ----
@@ -219,8 +331,8 @@ func (d *DB) AddSession(ctx context.Context, hash, name string, expires time.Tim
 
 func (d *DB) SessionUser(ctx context.Context, hash string) (*User, error) {
 	u := &User{}
-	err := d.QueryRowContext(ctx, `SELECT u.name, u.role FROM sessions s JOIN users u ON u.name = s.name WHERE s.hash = ? AND s.expires_at > ?`, hash, time.Now().Unix()).
-		Scan(&u.Name, &u.Role)
+	err := d.QueryRowContext(ctx, `SELECT u.name, u.role, u.must_change FROM sessions s JOIN users u ON u.name = s.name WHERE s.hash = ? AND s.expires_at > ?`, hash, time.Now().Unix()).
+		Scan(&u.Name, &u.Role, &u.MustChange)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
 	}
