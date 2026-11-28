@@ -86,6 +86,12 @@ func main() {
 	m.HandleFunc("GET /argos/running", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte(`{"running":[{"model":"qwen3-8b","state":"ready"}]}`))
 	})
+	// Demo only: stop a container, to watch T.I.T.A.N fix it by itself.
+	m.HandleFunc("POST /break", func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		running[r.URL.Query().Get("name")] = false
+		mu.Unlock()
+	})
 	m.HandleFunc("GET /plex/identity", func(w http.ResponseWriter, r *http.Request) {
 		mu.Lock()
 		up := running[*tunnel]

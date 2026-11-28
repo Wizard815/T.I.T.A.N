@@ -18,7 +18,7 @@ T.I.T.A.N is a status board and help desk for Wizard's friends and family. Go 1.
 
 - **No shell, ever.** Fixes are the named actions in `internal/config` and the ops in `internal/hands`. A new fix means a new named action, checked in titan and again in titan-hands.
 - **Guard first, allowlist always.** Every chat message goes through `Agent.Check`. The guard fails closed (ask_owner). The allowlist, not the guard, is what keeps things safe.
-- **Changing actions need the person's Yes**, checked against their role again when they press it.
+- **Changing actions need the person's Yes**, checked against their role again when they press it. The one exception is self-heal (`heal`): T.I.T.A.N may start or restart a listed service that went down, once an hour, never a found container.
 - **The room is public to everyone signed in.** `/agent` there runs as `RoomUser` (friend at most, no personal services, its own history). Never give it the asker's role or private history.
 - **Found containers are look-only.** `discover:` cards never get actions; fixes need a `services:` entry and titan-hands' allowlist. `list` passes on only the labels in `keepLabel`.
 - **Events carry pseudonyms, not names.** Overseer is Wizard's alone and only reads `/api/events`.

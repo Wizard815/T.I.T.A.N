@@ -58,6 +58,25 @@ type Config struct {
 	Room      Room      `yaml:"room"`
 	Discover  Discover  `yaml:"discover"`
 	SkillsDir string    `yaml:"skills_dir"` // your own playbooks (.md); same name replaces a built-in one
+	// Heal lets T.I.T.A.N start or restart a service that went down by
+	// itself, once an hour at most, then check whether that fixed it.
+	// On unless set to false; a service can say heal: false too.
+	Heal *bool `yaml:"heal"`
+}
+
+// Heals says whether T.I.T.A.N may fix s by itself when it goes down.
+// Found containers never qualify: they have no actions.
+func (c *Config) Heals(s Service) bool {
+	off := func(b *bool) bool { return b != nil && !*b }
+	if off(c.Heal) || off(s.Heal) || s.Check.Found != "" {
+		return false
+	}
+	for _, a := range s.Actions {
+		if a == ActStart || a == ActRestart {
+			return true
+		}
+	}
+	return false
 }
 
 // Discover makes cards from what titan-hands sees in Docker, so a new app
@@ -103,9 +122,18 @@ type Argos struct {
 // Models are names Argos serves. Point them at local or cloud models in
 // Argos (profiles or selectors), not here.
 type Models struct {
-	Guard    string `yaml:"guard"`
-	Agent    string `yaml:"agent"`
-	Fallback string `yaml:"fallback"`
+	Guard    string  `yaml:"guard"`
+	Agent    string  `yaml:"agent"`
+	Fallback string  `yaml:"fallback"`
+	Ranker   *Ranker `yaml:"ranker"` // a decisions model that screens first (optional)
+}
+
+// Ranker is a decisions model such as baseten/joey-1 on OpenRouter. It
+// isn't a chat model, so it has its own address.
+type Ranker struct {
+	URL    string `yaml:"url"`     // default https://openrouter.ai/api/alpha/decisions
+	Model  string `yaml:"model"`   // e.g. baseten/joey-1
+	KeyEnv string `yaml:"key_env"` // env var with the key, e.g. OPENROUTER_API_KEY
 }
 
 type Hands struct {
@@ -147,8 +175,10 @@ type Service struct {
 	DependsOn []string `yaml:"depends_on"` // service ids; when one is down, this card says so
 	Info      []Info   `yaml:"info"`       // extra facts shown on the card
 	Actions   []string `yaml:"actions"`
-	Link      string   `yaml:"link"` // an "Open" button on the card
+	Link      string   `yaml:"link"` // an "Open" button on the card (owner only)
+	Join      string   `yaml:"join"` // how to get in, for everyone who sees it (game address, "password is in Discord")
 	Check     Check    `yaml:"check"`
+	Heal      *bool    `yaml:"heal"` // false: never fix this one by itself (default: the top-level heal)
 }
 
 type Check struct {

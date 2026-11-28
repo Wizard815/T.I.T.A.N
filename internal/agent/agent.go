@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -63,6 +64,12 @@ type Tools interface {
 	// Skills lists the playbooks this person's helper may read: name -> when to read it.
 	Skills(u User) map[string]string
 	Skill(u User, name string) (string, error)
+	// SkillsAbout names the playbooks (this person may read) about the
+	// services a message mentions, so the helper gets them without asking.
+	SkillsAbout(u User, text string) []string
+	// Named lists the ids of the services this person can see that a
+	// message names, so a fix is only offered for what they asked about.
+	Named(u User, text string) []string
 }
 
 type Agent struct {
@@ -71,8 +78,9 @@ type Agent struct {
 	Helper   string
 	Fallback string
 	Tools    Tools
-	Owner    string // shown in replies, e.g. "Wizard"
-	Plain    bool   // full sentences instead of caveman
+	Owner    string  // shown in replies, e.g. "Wizard"
+	Plain    bool    // full sentences instead of caveman
+	Ranker   *Ranker // optional decisions model that screens first; unsure cases go to Guard
 
 	mu      sync.Mutex
 	history map[string][]Message
@@ -86,6 +94,8 @@ type Turn struct {
 	Model     string     `json:"model,omitempty"`
 	Proposals []Proposal `json:"proposals,omitempty"`
 	Calls     []string   `json:"calls,omitempty"` // tool calls, for the log
+
+	asked string // the person's message, for checks on what the helper proposes
 }
 
 // screen catches the plainly destructive asks without spending a model call.
@@ -159,6 +169,22 @@ func (a *Agent) Check(ctx context.Context, u User, text string) Verdict {
 	if screen.MatchString(text) {
 		return Verdict{Verdict: Refuse, Reason: "That would delete or break things, which T.I.T.A.N never does."}
 	}
+	if a.Ranker != nil {
+		p, err := a.Ranker.Rank(ctx, u.Role, text)
+		if err == nil {
+			if v, sure := rankVerdict(p); sure {
+				v.Model = a.Ranker.Model
+				return v
+			}
+		}
+		// Unsure, or the ranker is down: the guard model takes a look.
+		if a.Guard == "" {
+			if err != nil {
+				return Verdict{Verdict: AskOwner, Reason: "The safety check isn't answering (" + err.Error() + "), so nothing can run right now."}
+			}
+			return Verdict{Verdict: AskOwner, Reason: "The safety check wasn't sure.", Model: a.Ranker.Model}
+		}
+	}
 	msgs := []Message{
 		{Role: "system", Content: fmt.Sprintf(guardPrompt, a.Owner, u.Role)},
 		{Role: "user", Content: "<message>\n" + text + "\n</message>"},
@@ -194,7 +220,8 @@ func parseVerdict(s string) Verdict {
 const helperPrompt = `You are T.I.T.A.N (Timely Intelligence for Tasks, Answers, and Navigation), the help desk for %[1]s's homelab. You are talking to %[2]s, who is a %[3]s.
 
 - Start by calling status to see the services this person can see. Only talk about those.
-- When something is down or stale and status lists a fix for it, call propose_fix in the same turn. The Yes button only appears when you call propose_fix: never write "press Yes" (or offer a fix in words) without calling it. You can only propose actions that status lists for that service, and only for the service the person is asking about. If what they asked about isn't in status, say you can't see it; never offer a fix for a different service instead. Never say a fix is done before they press Yes.
+- When something is down or stale and status lists a fix for it, call propose_fix in the same turn. The Yes button only appears when you call propose_fix: never write "press Yes" (or offer a fix in words) without calling it. You can only propose actions that status lists for that service, and only for the service the person is asking about. If what they asked about isn't in status, it isn't on their board: never offer a fix for a different service instead. If they say it's broken or ask for a fix, call tell_owner with what they said and tell them %[1]s has been told; otherwise say it isn't one of theirs and offer to tell %[1]s. Never say a fix is done before they press Yes.
+- check_now only re-runs the check. Don't offer it for something status already shows as up: it fixes nothing. When a service is up but the person still has trouble, follow its playbook and say what you found.
 - recent_problems shows the last log lines of a service with secrets removed. Summarise them in plain words; don't paste them unless the person is the owner.
 - If a service is down only because another one is (down_because_this_is_down), say that plainly and don't restart it: the fix is the other one, which may be %[1]s's job.
 - If the fix isn't on the list, say so and offer tell_owner, which passes a message to %[1]s. If the person is the owner, don't offer tell_owner: say what you found and what they could check.
@@ -228,7 +255,7 @@ const nudgePrompt = `(From T.I.T.A.N, not the person.) You told them to press Ye
 // Ask answers one message: guard first, then the helper.
 func (a *Agent) Ask(ctx context.Context, u User, text string) Turn {
 	v := a.Check(ctx, u, text)
-	t := Turn{Verdict: v}
+	t := Turn{Verdict: v, asked: text}
 	switch v.Verdict {
 	case Refuse:
 		t.Reply = "I can't help with that. " + v.Reason + " I've let " + a.Owner + " know."
@@ -245,6 +272,14 @@ func (a *Agent) Ask(ctx context.Context, u User, text string) Turn {
 	sys := fmt.Sprintf(helperPrompt, a.Owner, u.Name, u.Role, style, a.skillList(u))
 	if u.Room {
 		sys += roomNote
+	}
+	// Small models often skip read_skill, so a playbook about a service the
+	// message names is handed over up front.
+	for _, n := range a.Tools.SkillsAbout(u, text) {
+		if body, err := a.Tools.Skill(u, n); err == nil {
+			sys += "\n\nPlaybook " + n + " (already read for you; follow it):\n" + body
+			t.Calls = append(t.Calls, "read_skill "+n+" (given)")
+		}
 	}
 	msgs := []Message{{Role: "system", Content: sys}}
 	msgs = append(msgs, a.past(u.key())...)
@@ -317,6 +352,15 @@ func (a *Agent) call(ctx context.Context, u User, c ToolCall, t *Turn) string {
 		s, err := a.Tools.Problems(ctx, u, args.Service)
 		return orErr(s, err)
 	case "propose_fix":
+		svc := strings.ToLower(strings.TrimSpace(args.Service))
+		for _, p := range t.Proposals {
+			if p.Service == svc && p.Action == args.Action {
+				return "Already offered: " + p.Label + ". Don't offer it again; answer the person."
+			}
+		}
+		if named := a.Tools.Named(u, t.asked); len(named) > 0 && !slices.Contains(named, svc) {
+			return "Not offered: they asked about " + strings.Join(named, ", ") + ", not " + args.Service + ". Only offer fixes for what they asked about."
+		}
 		p, err := a.Tools.Propose(ctx, u, args.Service, args.Action)
 		if err != nil {
 			return "Not allowed: " + err.Error()

@@ -181,6 +181,13 @@ func serve(cfgPath, dataPath string, d *db.DB, a *auth.Auth) error {
 		Playbooks: book, OwnerName: env("TITAN_OWNER_LABEL", "Wizard"), Secure: os.Getenv("TITAN_SECURE_COOKIE") == "1",
 	}
 	app.Agent = &agent.Agent{Models: models, Guard: cfg.Models.Guard, Helper: cfg.Models.Agent, Fallback: cfg.Models.Fallback, Tools: app, Owner: app.OwnerName, Plain: cfg.Style == "plain"}
+	if rk := cfg.Models.Ranker; rk != nil && rk.Model != "" {
+		url := rk.URL
+		if url == "" {
+			url = "https://openrouter.ai/api/alpha/decisions"
+		}
+		app.Agent.Ranker = &agent.Ranker{URL: url, Model: rk.Model, APIKey: os.Getenv(rk.KeyEnv), HTTP: &http.Client{}}
+	}
 	runner.OnChange = app.OnChange
 	go runner.Run(ctx)
 

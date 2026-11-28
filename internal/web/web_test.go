@@ -761,3 +761,120 @@ func TestTitan_DownBecauseOfAnotherService(t *testing.T) {
 		t.Fatalf("only the root problem goes to the inbox: %v", down)
 	}
 }
+
+func TestTitan_SelfHealStartsWhatWentDownOnceAnHour(t *testing.T) {
+	w := newWorld(t)
+	ctx := context.Background()
+	set := func(on bool) {
+		w.docker.mu.Lock()
+		w.docker.running["minecraft"] = on
+		w.docker.mu.Unlock()
+	}
+	set(true)
+	w.app.Runner.Round(ctx)
+	w.app.Wait()
+	before := len(w.docker.got())
+
+	// It goes down by itself: T.I.T.A.N starts it and says so.
+	set(false)
+	w.app.Runner.Round(ctx)
+	w.app.Wait()
+	got := w.docker.got()[before:]
+	if len(got) != 1 || got[0] != "start minecraft" {
+		t.Fatalf("self-heal should start minecraft once: %v", got)
+	}
+	ups, _ := w.app.DB.Updates(ctx, "minecraft", 10)
+	said := false
+	for _, u := range ups {
+		said = said || strings.Contains(u.Text, "T.I.T.A.N tried to start Minecraft by itself")
+	}
+	if !said {
+		t.Fatalf("no update about the self-heal: %+v", ups)
+	}
+
+	// Down again within the hour: left for the owner.
+	before = len(w.docker.got())
+	set(false)
+	w.app.Runner.Round(ctx)
+	w.app.Wait()
+	if got := w.docker.got()[before:]; len(got) != 0 {
+		t.Fatalf("second heal within the hour: %v", got)
+	}
+
+	// heal: false turns it off.
+	off := false
+	w.app.Cfg.Heal = &off
+	w.app.healed = nil
+	set(true)
+	w.app.Runner.Round(ctx)
+	set(false)
+	w.app.Runner.Round(ctx)
+	w.app.Wait()
+	if got := w.docker.got()[before:]; len(got) != 0 {
+		t.Fatalf("heal: false still fixed it: %v", got)
+	}
+}
+
+func TestTitan_PlaybooksComeWithTheServiceNamed(t *testing.T) {
+	w := newWorld(t)
+	friend := agent.User{Name: "alex", Role: "friend"}
+	if got := w.app.SkillsAbout(friend, "plex keeps buffering tonight"); len(got) != 1 || got[0] != "plex-trouble" {
+		t.Fatalf("plex playbook: %v", got)
+	}
+	if got := w.app.SkillsAbout(friend, "faith is down"); len(got) != 0 {
+		t.Fatalf("a friend got a family playbook: %v", got)
+	}
+	if got := w.app.SkillsAbout(agent.User{Name: "sam", Role: "family"}, "faith is down"); len(got) != 1 || got[0] != "faith-down" {
+		t.Fatalf("family faith playbook: %v", got)
+	}
+	// The helper is handed it without calling read_skill.
+	var sys string
+	w.argos.reply = func(model string, body map[string]any) (int, map[string]any) {
+		if model == "guard-m" {
+			return 200, text(`{"verdict":"allow","reason":"ok"}`)
+		}
+		sys = body["messages"].([]any)[0].(map[string]any)["content"].(string)
+		return 200, text("ok")
+	}
+	w.login("alex").do("POST", "/api/chat", map[string]string{"message": "plex keeps buffering"})
+	if !strings.Contains(sys, "Playbook plex-trouble") {
+		t.Fatalf("playbook not in the prompt")
+	}
+}
+
+func TestTitan_OpenLinkIsOwnerOnly(t *testing.T) {
+	w := newWorld(t)
+	for i := range w.app.Cfg.Services {
+		w.app.Cfg.Services[i].Link = "http://192.168.20.5:1234"
+	}
+	w.app.Runner.Cfg = w.app.Cfg
+	if l := w.login("wizard").board()["minecraft"]["link"]; l == nil {
+		t.Fatalf("owner lost the Open link")
+	}
+	if l := w.login("alex").board()["minecraft"]["link"]; l != nil {
+		t.Fatalf("friend got a home address: %v", l)
+	}
+}
+
+func TestTitan_JoinNotesComeWithCantJoin(t *testing.T) {
+	w := newWorld(t)
+	for i, s := range w.app.Cfg.Services {
+		if s.ID == "enshrouded" {
+			w.app.Cfg.Services[i].Join = "Server at 10.0.0.5:15637, password in Discord."
+		}
+	}
+	w.argos.reply = func(model string, body map[string]any) (int, map[string]any) {
+		if model == "guard-m" {
+			return 200, text(`{"verdict":"allow","reason":"ok"}`)
+		}
+		return 200, text("🤷 Server up.")
+	}
+	_, turn := w.login("alex").do("POST", "/api/chat", map[string]string{"message": "enshrouded is up but we cant join"})
+	if r := str(turn["reply"]); !strings.Contains(r, "password in Discord") {
+		t.Fatalf("no join notes: %q", r)
+	}
+	_, turn = w.login("alex").do("POST", "/api/chat", map[string]string{"message": "is enshrouded up?"})
+	if r := str(turn["reply"]); strings.Contains(r, "Discord") {
+		t.Fatalf("join notes when nobody asked: %q", r)
+	}
+}

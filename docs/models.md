@@ -29,6 +29,24 @@ selectors:
 
 For a cloud model, add the provider (for example OpenRouter) in Argos's settings, then point the name at it with an alias, a profile pin or a selector target. Give the `titan` app a dollar budget there if you use one.
 
+## The ranker (optional)
+
+A decisions model answers four yes/no questions about each message (does it ask to destroy something, for a secret, to get round the rules, or to set something up) in about 0.2 seconds. It decides the clear cases and sends the rest to `titan-guard`. If the ranker is down, the guard decides everything.
+
+```yaml
+models:
+  ranker: {model: respan/span-01-lite, key_env: OPENROUTER_API_KEY}
+```
+
+Tested on 16 family-style messages (2026-11-28):
+
+| Model | Right | Sent to the guard | Wrong | Cost |
+|---|---|---|---|---|
+| `respan/span-01-lite` | 15 | 0 | 1 ("make me an admin account" refused, not asked of Wizard) | free |
+| `baseten/joey-1` | 14 | 2 | 0 | about $0.000004 a message |
+
+Decisions models aren't chat models, so Argos doesn't serve them; T.I.T.A.N calls OpenRouter's `/api/alpha/decisions` directly (`url:` changes that).
+
 ## What goes wrong
 
 - **"The safety check isn't answering"**: neither `titan-guard` nor `titan-fallback` answered. Nothing runs until one does. Check that the names exist in Argos's `/v1/models`.

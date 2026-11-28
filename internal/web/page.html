@@ -109,16 +109,26 @@
   #menu { display:none; }
   @media (max-width:760px) {
     /* phone: one-line header, menu behind a button, rows as compact cards */
+    html, body { font-size:11.5px; }
+    .brand b { letter-spacing:.08em; } .pill { font-size:.75rem; padding:0 8px; }
+    /* 16px stops iPhones zooming the page in when a box is tapped */
+    input, textarea, select { font-size:16px; min-height:36px; padding:4px 8px; }
+    button { min-height:36px; padding:4px 10px; }
+    .b { padding:4px 8px; }
+    .b .more button { min-height:30px; }
+    .confirm { padding:4px 6px; }
+    .tabs button { min-height:32px; }
+    .wrap { padding:0 10px; }
     header.top .wrap { gap:8px; padding-top:6px; padding-bottom:6px; }
     .brand b { font-size:.95rem; } .logo { width:22px; height:22px; }
     .stats { order:3; width:100%; flex-wrap:nowrap; overflow-x:auto; scrollbar-width:none; }
     .stats::-webkit-scrollbar { display:none; }
-    #menu { display:inline-flex; margin-left:auto; min-height:40px; padding:4px 12px; }
+    #menu { display:inline-flex; margin-left:auto; min-height:34px; padding:2px 10px; }
     nav { display:none; width:100%; order:4; margin:0; justify-content:flex-start; }
     nav.open { display:flex; }
     .chat { height:46vh; min-height:300px; }
     main { padding-top:8px; }
-    .row { grid-template-columns:minmax(0,1fr) auto; gap:4px 8px; padding:8px 10px; }
+    .row { grid-template-columns:minmax(0,1fr) auto; gap:3px 8px; padding:6px 8px; }
     .row .st { display:none; }
     .row .what { grid-column:1; } .row .pct { grid-column:2; grid-row:1; display:block; }
     .row .pct br, .row .pct .lbl { display:none; }
@@ -126,7 +136,7 @@
     .what .mst { display:inline; }
     .acts { grid-column:1 / -1; justify-content:flex-start; flex-wrap:nowrap; overflow-x:auto; scrollbar-width:none; padding-bottom:2px; }
     .acts::-webkit-scrollbar { display:none; }
-    .acts button, .acts a.open { min-height:40px; white-space:nowrap; flex:none; padding:2px 12px; }
+    .acts button, .acts a.open { min-height:34px; white-space:nowrap; flex:none; padding:2px 10px; }
     .lg { display:none; } .sh { display:inline; }
     #menu { align-items:center; gap:6px; }
     .confirm > span:first-child { flex-basis:100%; }
@@ -339,7 +349,21 @@ function row(c) {
   const acts = el('div', { class: 'acts' });
   const two = (lg, sh) => [el('span', { class: 'lg' }, lg), el('span', { class: 'sh', 'aria-hidden': 'true' }, sh)];
   if (c.status === 'down') acts.append(el('button', { class: 'askb', 'aria-label': 'Ask T.I.T.A.N about ' + c.name, onclick: () => askAbout(c) }, ...two('Ask T.I.T.A.N', '🔎 Ask')));
-  for (const a of c.actions) acts.append(el('button', { class: 'quiet', onclick: () => act(c, a, msg) }, ...(a.label === 'Check again' ? two('Check again', 'Check') : [a.label])));
+  // A healthy card keeps its fixes behind "More": Restart on something that works is clutter.
+  const btn = a => el('button', { class: 'quiet', onclick: () => act(c, a, msg) }, ...(a.label === 'Check again' ? two('Check again', 'Check') : [a.label]));
+  const extra = c.actions.filter(a => a.action !== 'check_now');
+  for (const a of c.actions.filter(a => a.action === 'check_now')) acts.append(btn(a));
+  if (c.status === 'up' && extra.length) {
+    const hidden = extra.map(btn);
+    hidden.forEach(b => b.hidden = true);
+    const more = el('button', { class: 'quiet', 'aria-expanded': 'false', 'aria-label': 'More for ' + c.name, onclick: () => {
+      const on = more.getAttribute('aria-expanded') !== 'true';
+      more.setAttribute('aria-expanded', String(on));
+      hidden.forEach(b => b.hidden = !on);
+      more.replaceChildren(...(on ? two('Less', '−') : two('More', '⋯')));
+    } }, ...two('More', '⋯'));
+    acts.append(more, ...hidden);
+  } else for (const a of extra) acts.append(btn(a));
   if (c.link && /^https?:\/\//.test(c.link)) acts.append(el('a', { class: 'open', href: c.link, target: '_blank', rel: 'noopener', 'aria-label': 'Open ' + c.name }, ...two('Open', '↗')));
   acts.append(el('button', { class: 'quiet', 'aria-label': 'Updates for ' + c.name, onclick: () => openUpdates(c) }, ...two('Updates', '📝'), c.updates_24h ? ' (' + c.updates_24h + ')' : ''));
   return el('div', { class: 'row' },

@@ -1,7 +1,12 @@
 # A copy of Wizard's Unraid (2026-11-27 container list) on fakes, with real
 # models through OpenRouter (demo/orproxy). Nothing real is touched.
 argos: {url: http://127.0.0.1:9920/v1, timeout: 60s}
-models: {guard: titan-guard, agent: titan-agent, fallback: titan-fallback}
+models:
+  guard: titan-guard
+  agent: titan-agent
+  fallback: titan-fallback
+  # a free decisions model screens every message first (baseten/joey-1 works too)
+  ranker: {url: http://127.0.0.1:9920/api/alpha/decisions, model: respan/span-01-lite}
 hands: {url: http://127.0.0.1:9911}
 faith_url: http://192.168.20.5:8097
 check_every: 30s
@@ -17,7 +22,7 @@ pipeline:
   sabnzbd:  {url: "http://127.0.0.1:9900/sab"}
   tautulli: {url: "http://127.0.0.1:9900/tautulli"}
 services:
-  - {id: enshrouded, name: Enshrouded, group: Games, about: "Runs in AMP.", audience: friends, amp: Enshrouded01, check: {amp: true}, actions: [start_service, restart_service]}
+  - {id: enshrouded, name: Enshrouded, group: Games, about: "Runs in AMP.", audience: friends, amp: Enshrouded01, check: {amp: true}, actions: [start_service, restart_service], join: "Server: Wizard's World at 192.168.20.5:15637. The password is pinned in the Discord #games channel."}
   - {id: tunnel, name: Outside access, group: Homelab, audience: owner, container: Unraid-Cloudflared-Tunnel, check: {container: true}, actions: [restart_service]}
   - id: plex
     name: Plex

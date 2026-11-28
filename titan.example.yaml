@@ -11,6 +11,15 @@ models:
   guard: titan-guard        # reads every message first: allow, ask_owner or refuse
   agent: titan-agent        # the helper that answers and offers fixes
   fallback: titan-fallback  # used when either of the others fails
+  # Optional: a decisions model screens every message before the guard, in
+  # about 0.2 s. Clear cases are decided there; unsure ones go to the guard.
+  # respan/span-01-lite is free; baseten/joey-1 costs about $0.000004 a message.
+  # ranker: {model: respan/span-01-lite, key_env: OPENROUTER_API_KEY}
+
+# T.I.T.A.N starts or restarts a service that went down by itself (once an
+# hour at most per service), then checks it again. heal: false turns that
+# off everywhere; heal: false on a service turns it off for that one.
+# heal: true
 
 # titan-hands is the only thing that can change anything.
 hands:
@@ -60,6 +69,8 @@ limits:
 # audience: who sees it (friends, family, owner). fix_by: who may ask for its
 # fixes (defaults to audience). person: only that account (and the owner).
 # actions: check_now, start_service, restart_service, run_sync, recent_problems.
+# link: an Open button, shown to the owner only (home addresses don't work
+# for anyone else).
 # Container names below are from Wizard's Unraid list (2026-11-27); every one
 # you allow fixes for must also be in TITAN_HANDS_CONTAINERS.
 services:
@@ -74,6 +85,9 @@ services:
     amp: Enshrouded01
     check: {amp: true}
     actions: [start_service, restart_service]
+    # shown to anyone who says they can't join; say where the password is
+    # rather than writing it here
+    join: "Server: Wizard's World. The password is pinned in Discord #games."
 
   - id: plex
     name: Plex

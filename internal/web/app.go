@@ -12,6 +12,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"regexp"
 	"sort"
 	"strings"
 	"sync"
@@ -45,6 +46,8 @@ type App struct {
 
 	recheck time.Duration // wait after a fix before checking again
 	wg      sync.WaitGroup
+	healMu  sync.Mutex
+	healed  map[string]time.Time // service id -> when T.I.T.A.N last fixed it by itself
 	room    room
 }
 
@@ -124,9 +127,12 @@ func (a *App) Board(ctx context.Context, u agent.User) ([]Card, error) {
 		if !a.sees(s, u) {
 			continue
 		}
-		c := Card{ID: s.ID, Name: s.Name, Group: s.Group, About: s.About, Personal: s.Person != "", Status: "pending", Detail: "Not checked yet", Uptime: map[string]float64{}, Beats: []int{}, Info: a.Runner.Facts(s.ID), Link: s.Link, Found: s.Check.Found != ""}
+		c := Card{ID: s.ID, Name: s.Name, Group: s.Group, About: s.About, Personal: s.Person != "", Status: "pending", Detail: "Not checked yet", Uptime: map[string]float64{}, Beats: []int{}, Info: a.Runner.Facts(s.ID), Found: s.Check.Found != ""}
 		if c.Info == nil {
 			c.Info = []string{}
+		}
+		if u.Role == config.Owner && !u.Room {
+			c.Link = s.Link // home addresses: they rarely work for anyone else
 		}
 		c.Updates, c.Working = counts[s.ID], working[s.ID]
 		if c.Working == nil {
@@ -200,6 +206,7 @@ func (a *App) Status(ctx context.Context, u agent.User) (string, error) {
 		Up24h   float64  `json:"uptime_24h_percent"`
 		Info    []string `json:"info,omitempty"`
 		Cause   string   `json:"down_because_this_is_down,omitempty"`
+		Join    string   `json:"how_to_join,omitempty"`
 		Fixes   []string `json:"fixes_allowed"`
 	}
 	rows := []row{}
@@ -209,6 +216,7 @@ func (a *App) Status(ctx context.Context, u agent.User) (string, error) {
 			r.Checked = checks.Ago(time.Since(time.Unix(c.CheckedAt, 0))) + " ago"
 		}
 		s, _ := a.find(c.ID)
+		r.Join = s.Join
 		for _, act := range append([]string{config.ActCheck}, s.Actions...) {
 			if a.allows(s, u, act) && !contains(r.Fixes, act) {
 				r.Fixes = append(r.Fixes, act)
@@ -385,7 +393,7 @@ func (a *App) Decide(ctx context.Context, u agent.User, id string, yes bool, via
 		}
 		if n >= a.Cfg.Limits.PerHour {
 			a.DB.Claim(ctx, id, "declined")
-			a.note(ctx, "limit", u.Name, fmt.Sprintf("Wanted to %s again, but it has been done %d times this hour.", strings.ToLower(proposalLabel(p.Action, s.Name)), n))
+			a.note(ctx, "limit", u.Name, fmt.Sprintf("Wanted to %s again, but it has been done %d times this hour.", lowerFirst(proposalLabel(p.Action, s.Name)), n))
 			return "", fmt.Errorf("%s has had that %d times this hour, which is the limit. I've told %s.", s.Name, n, a.OwnerName)
 		}
 	}
@@ -401,7 +409,7 @@ func (a *App) Decide(ctx context.Context, u agent.User, id string, yes bool, via
 	a.DB.Finish(ctx, id, state, msg)
 	if p.Action != config.ActCheck {
 		verb := map[string]string{"done": "asked T.I.T.A.N to", "failed": "tried to"}[state]
-		a.post(ctx, s.ID, fmt.Sprintf("%s %s %s: %s", u.Name, verb, strings.ToLower(proposalLabel(p.Action, s.Name)), msg))
+		a.post(ctx, s.ID, fmt.Sprintf("%s %s %s: %s", u.Name, verb, lowerFirst(proposalLabel(p.Action, s.Name)), msg))
 	}
 	a.event(ctx, "action", map[string]any{"who": a.who(u.Name), "role": u.Role, "service": s.ID, "action": p.Action, "state": state, "result": msg, "via": via})
 	if err != nil {
@@ -455,6 +463,64 @@ func (a *App) later(s config.Service) {
 	}()
 }
 
+// heal is T.I.T.A.N fixing a service by itself: it waits one check (a
+// blip often clears), then starts or restarts it once, and the usual
+// re-check says whether that worked. Once an hour at most per service;
+// after that it's the owner's (the down note already went to the inbox).
+func (a *App) heal(s config.Service) {
+	d := a.recheck
+	if d == 0 {
+		d = 30 * time.Second
+	}
+	time.Sleep(d)
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+	if r := a.Runner.CheckOne(ctx, s); r.OK {
+		return
+	}
+	a.healMu.Lock()
+	if a.healed == nil {
+		a.healed = map[string]time.Time{}
+	}
+	if t, ok := a.healed[s.ID]; ok && time.Since(t) < time.Hour {
+		a.healMu.Unlock()
+		a.post(ctx, s.ID, "Still down after T.I.T.A.N's own fix earlier, so it's left for "+a.OwnerName+".")
+		return
+	}
+	a.healed[s.ID] = time.Now()
+	a.healMu.Unlock()
+	last, _ := a.Runner.Last(s.ID)
+	act := healAction(s, last.Detail)
+	if n, _ := a.DB.DoneSince(ctx, s.ID, act, time.Now().Add(-10*time.Minute)); n > 0 {
+		return // someone just pressed Yes on it; let that play out
+	}
+	msg, err := a.run(ctx, s, act)
+	state := "done"
+	if err != nil {
+		state, msg = "failed", err.Error()
+	}
+	a.post(ctx, s.ID, fmt.Sprintf("T.I.T.A.N tried to %s by itself: %s", lowerFirst(proposalLabel(act, s.Name)), msg))
+	a.event(ctx, "action", map[string]any{"who": "titan", "role": "titan", "service": s.ID, "action": act, "state": state, "result": msg, "via": "heal"})
+}
+
+// lowerFirst turns "Restart FAITH" into "restart FAITH" for mid-sentence use.
+func lowerFirst(s string) string {
+	if s == "" {
+		return s
+	}
+	return strings.ToLower(s[:1]) + s[1:]
+}
+
+// healAction starts what's off and restarts what's on but broken.
+func healAction(s config.Service, detail string) string {
+	has := func(x string) bool { return contains(s.Actions, x) }
+	off := regexp.MustCompile(`(?i)\b(off|exited|stopped|not running|isn't running|created)\b`).MatchString(detail)
+	if has(config.ActStart) && (off || !has(config.ActRestart)) {
+		return config.ActStart
+	}
+	return config.ActRestart
+}
+
 // Wait lets background work finish (tests, shutdown).
 func (a *App) Wait() { a.wg.Wait() }
 
@@ -478,6 +544,10 @@ func (a *App) OnChange(s config.Service, r db.Result) {
 	if !r.OK && cause == "" {
 		a.note(ctx, "down", "titan", s.Name+" is down: "+r.Detail)
 	}
+	if !r.OK && cause == "" && a.Cfg.Heals(s) {
+		a.wg.Add(1)
+		go func() { defer a.wg.Done(); a.heal(s) }()
+	}
 }
 
 func (a *App) event(ctx context.Context, kind string, data any) {
@@ -489,6 +559,9 @@ func (a *App) event(ctx context.Context, kind string, data any) {
 // Chat runs one message through the guard and helper, and logs it.
 func (a *App) Chat(ctx context.Context, u agent.User, text string) agent.Turn {
 	t := a.Agent.Ask(ctx, u, text)
+	if t.Verdict.Verdict == agent.Allow {
+		t.Reply += a.joinHint(u, text, t.Reply)
+	}
 	who := a.who(u.Name)
 	a.event(ctx, "guard", map[string]any{"who": who, "role": u.Role, "text": text, "verdict": t.Verdict.Verdict, "reason": t.Verdict.Reason, "model": t.Verdict.Model})
 	switch t.Verdict.Verdict {
@@ -500,6 +573,22 @@ func (a *App) Chat(ctx context.Context, u agent.User, text string) agent.Turn {
 		a.event(ctx, "conversation", map[string]any{"who": who, "role": u.Role, "room": u.Room, "text": text, "reply": t.Reply, "model": t.Model, "calls": t.Calls, "proposals": t.Proposals})
 	}
 	return t
+}
+
+var aboutJoining = regexp.MustCompile(`(?i)\bjoin|let (us|me) in|get in|connect|password|server (address|ip)|\bip\b`)
+
+// joinHint adds the owner's own "how to join" words when someone can't get
+// into a game, so it doesn't depend on the model remembering to.
+func (a *App) joinHint(u agent.User, text, reply string) string {
+	if !aboutJoining.MatchString(text) {
+		return ""
+	}
+	for _, id := range a.Named(u, text) {
+		if s, ok := a.find(id); ok && s.Join != "" && !strings.Contains(reply, s.Join) {
+			return "\n🎮 " + s.Name + ": " + s.Join
+		}
+	}
+	return ""
 }
 
 // Explain re-says the person's last answer in full sentences.
@@ -557,6 +646,52 @@ func (a *App) Skill(u agent.User, name string) (string, error) {
 		return "", fmt.Errorf("there's no playbook called %q for this person", name)
 	}
 	return s.Body, nil
+}
+
+// SkillsAbout matches the services a message names (by id, name or
+// container) to the playbooks about them that u may read.
+func (a *App) SkillsAbout(u agent.User, text string) []string {
+	named := map[string]bool{}
+	for _, s := range a.Cfg.Services {
+		if names(s, text) {
+			named[s.ID] = true
+		}
+	}
+	var out []string
+	for _, k := range a.playbooks().For(u.Role) {
+		for _, id := range k.Services {
+			if named[id] && !contains(out, k.Name) {
+				out = append(out, k.Name)
+			}
+		}
+	}
+	sort.Strings(out)
+	if len(out) > 2 {
+		out = out[:2]
+	}
+	return out
+}
+
+// Named lists the services u can see (found containers too) that text names.
+func (a *App) Named(u agent.User, text string) []string {
+	var out []string
+	for _, s := range a.Runner.Services() {
+		if a.sees(s, u) && names(s, text) {
+			out = append(out, s.ID)
+		}
+	}
+	return out
+}
+
+// names says whether text mentions s by id, name, container or AMP instance.
+func names(s config.Service, text string) bool {
+	text = strings.ToLower(text)
+	for _, w := range []string{s.ID, s.Name, s.Container, s.AMP} {
+		if w = strings.ToLower(w); len(w) >= 3 && strings.Contains(text, w) {
+			return true
+		}
+	}
+	return false
 }
 
 var builtinSkills = sync.OnceValue(func() skills.Set { s, _ := skills.Load(""); return s })

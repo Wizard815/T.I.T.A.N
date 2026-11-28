@@ -7,6 +7,7 @@
 //	ORPROXY_MODELS   "titan-guard=google/gemini-2.5-flash-lite titan-agent=... titan-fallback=..."
 //	OPENROUTER_API_KEY  sent as the bearer token
 //
+// POST /api/alpha/decisions passes ranker calls (Joey-1, Span-01) through.
 // GET /spend shows what has been spent and every call.
 package main
 
@@ -117,6 +118,48 @@ func main() {
 		total := spent
 		mu.Unlock()
 		log.Printf("%s -> %s %d in/%d out $%.6f (total $%.4f) %dms", asked, real, c.In, c.Out, c.Cost, total, c.MS)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(resp.StatusCode)
+		w.Write(out)
+	})
+	// Decisions (the ranker): passed straight through, with the cost counted.
+	http.HandleFunc("POST /api/alpha/decisions", func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		over := spent >= budget
+		mu.Unlock()
+		if over {
+			w.WriteHeader(429)
+			fmt.Fprintf(w, `{"error":{"message":"demo budget of $%.2f is spent"}}`, budget)
+			return
+		}
+		b, _ := io.ReadAll(io.LimitReader(r.Body, 1<<20))
+		var asked struct{ Model string }
+		json.Unmarshal(b, &asked)
+		req, _ := http.NewRequestWithContext(r.Context(), "POST", "https://openrouter.ai/api/alpha/decisions", bytes.NewReader(b))
+		req.Header.Set("Authorization", "Bearer "+key)
+		req.Header.Set("Content-Type", "application/json")
+		start := time.Now()
+		resp, err := hc.Do(req)
+		if err != nil {
+			http.Error(w, `{"error":{"message":"openrouter unreachable"}}`, 502)
+			return
+		}
+		defer resp.Body.Close()
+		out, _ := io.ReadAll(resp.Body)
+		var u struct {
+			Usage struct {
+				InputTokens int     `json:"input_tokens"`
+				Cost        float64 `json:"cost"`
+			}
+		}
+		json.Unmarshal(out, &u)
+		c := call{At: start, Asked: "ranker", Model: asked.Model, In: u.Usage.InputTokens, Cost: u.Usage.Cost, MS: time.Since(start).Milliseconds(), Status: resp.StatusCode}
+		mu.Lock()
+		spent += c.Cost
+		calls = append(calls, c)
+		total := spent
+		mu.Unlock()
+		log.Printf("ranker %s %d in $%.7f (total $%.4f) %dms", c.Model, c.In, c.Cost, total, c.MS)
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(resp.StatusCode)
 		w.Write(out)
