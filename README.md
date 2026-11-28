@@ -1,5 +1,7 @@
 # T.I.T.A.N
 
+**Timely Intelligence for Tasks, Answers, and Navigation**
+
 [![License: PolyForm Shield 1.0.0](https://img.shields.io/badge/license-PolyForm%20Shield%201.0.0-blue)](LICENSE)
 
 **Timely Intelligence for Tasks, Answers, and Navigation**: a status board and help desk for the people who use Wizard's homelab.

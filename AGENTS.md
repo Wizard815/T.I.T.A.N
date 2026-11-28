@@ -1,6 +1,6 @@
 # T.I.T.A.N agent guide
 
-T.I.T.A.N is a status board and help desk for Wizard's friends and family. Go 1.24, one module, no build step for the page (`internal/web/page.html` is embedded).
+T.I.T.A.N (Timely Intelligence for Tasks, Answers, and Navigation) is a status board and help desk for Wizard's friends and family. Go 1.24, one module, no build step for the page (`internal/web/page.html` is embedded).
 
 | Path | What |
 |---|---|
